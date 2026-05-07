@@ -77,7 +77,7 @@ export function RichTextEditor({
     if (!value) return;
     const current = JSON.stringify(editor.getJSON());
     const next = JSON.stringify(value);
-    if (current !== next) editor.commands.setContent(value as never, { emitUpdate: false });
+    if (current !== next) editor.commands.setContent(value as never, false);
   }, [editor, value]);
 
   if (!editor) return <div className="skeleton h-[180px] rounded" />;

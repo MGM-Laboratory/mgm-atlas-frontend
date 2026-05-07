@@ -8,7 +8,7 @@ import { initials } from '@/lib/utils';
 interface Props {
   src?: string | null;
   name: string;
-  size?: 24 | 32 | 40 | 48 | 64;
+  size?: 24 | 28 | 32 | 36 | 40 | 48 | 64;
   className?: string;
 }
 

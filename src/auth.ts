@@ -12,15 +12,16 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
-  interface JWT {
-    accessToken?: string;
-    accessTokenExpires?: number;
-    refreshToken?: string;
-    idToken?: string;
-    error?: 'RefreshAccessTokenError';
-  }
-}
+type AppJWT = {
+  name?: string | null;
+  email?: string | null;
+  picture?: string | null;
+  accessToken?: string;
+  accessTokenExpires?: number;
+  refreshToken?: string;
+  idToken?: string;
+  error?: 'RefreshAccessTokenError';
+} & Record<string, unknown>;
 
 async function refreshAccessToken(token: { refreshToken?: string }) {
   if (!token.refreshToken) return null;
@@ -71,7 +72,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: '/login',
   },
   callbacks: {
-    async jwt({ token, account, profile }) {
+    async jwt({ token: rawToken, account, profile }) {
+      const token = rawToken as AppJWT;
       // Initial sign-in: copy tokens onto the JWT.
       if (account && account.access_token) {
         token.accessToken = account.access_token;
@@ -96,14 +98,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return { ...token, ...refreshed };
     },
-    async session({ session, token }) {
+    async session({ session, token: rawToken }) {
+      const token = rawToken as AppJWT;
       session.accessToken = token.accessToken;
       session.error = token.error;
       session.user = {
         ...session.user,
         name: token.name ?? session.user?.name,
         email: token.email ?? session.user?.email,
-        image: (token.picture as string | undefined) ?? session.user?.image,
+        image: token.picture ?? session.user?.image,
       };
       return session;
     },

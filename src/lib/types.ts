@@ -63,6 +63,7 @@ export interface ProjectMedia {
   order: number;
   width?: number | null;
   height?: number | null;
+  sizeBytes?: number | null;
 }
 
 export interface ProjectCard {
