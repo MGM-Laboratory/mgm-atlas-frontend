@@ -5,15 +5,15 @@ ARG NODE_VERSION=20.18.0
 FROM node:${NODE_VERSION}-alpine AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # ─── Dependencies ──────────────────────────────────────────────────────────
 FROM base AS deps
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile=false
+    pnpm install --frozen-lockfile
 
 # ─── Build ─────────────────────────────────────────────────────────────────
 FROM base AS build
