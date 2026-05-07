@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/.git
+**/coverage
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+**/.DS_Store
+**/.idea
+**/.vscode
+**/Dockerfile
+**/.dockerignore
+**/.github
+**/*.log
+**/*.tsbuildinfo

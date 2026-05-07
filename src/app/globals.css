@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design tokens ───────────────────────────────────────────────────── */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #f7f7f5;
+  --surface-inverse: #0e1116;
+
+  --brand-blue: #3a6dc5;
+  --brand-yellow: #f7bf33;
+  --brand-red: #f94141;
+  --brand-green: #0f8657;
+  --brand-blue-50: #ecf1fa;
+  --brand-yellow-50: #fef6e0;
+  --brand-red-50: #fee5e5;
+  --brand-green-50: #e2f1ea;
+  --brand-yellow-ink: #8a6d18;
+
+  --ink: #0e1116;
+  --ink-2: #3b4150;
+  --ink-3: #6b7280;
+  --ink-4: #9aa1ad;
+
+  --line: #ececea;
+  --line-strong: #d8d8d2;
+
+  --focus: #3a6dc5;
+
+  --shadow-1: 0 1px 2px rgba(14, 17, 22, 0.04), 0 1px 1px rgba(14, 17, 22, 0.03);
+  --shadow-2: 0 6px 24px -8px rgba(14, 17, 22, 0.10), 0 2px 6px -2px rgba(14, 17, 22, 0.05);
+  --shadow-3: 0 24px 60px -20px rgba(14, 17, 22, 0.18), 0 4px 12px -4px rgba(14, 17, 22, 0.06);
+
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --dur-4: 520ms;
+  --dur-5: 800ms;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─── Base ────────────────────────────────────────────────────────────── */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-geist), 'Geist', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'cv11';
+    font-size: 16px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  ::selection {
+    background: var(--brand-blue-50);
+    color: var(--ink);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-bricolage), 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+    color: var(--ink);
+  }
+  /* Tabular numerals on data-flavored containers */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Hide scroll bar in horizontal scroll rows but keep keyboard a11y */
+  .scroll-hidden::-webkit-scrollbar {
+    display: none;
+  }
+  .scroll-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+}
+
+/* ─── Components ──────────────────────────────────────────────────────── */
+@layer components {
+  .container-x {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+  @media (min-width: 768px) {
+    .container-x { padding-inline: 40px; }
+  }
+  @media (min-width: 1024px) {
+    .container-x { padding-inline: 64px; }
+  }
+
+  /* Skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--surface-muted) 0%,
+      rgba(255, 255, 255, 0.6) 50%,
+      var(--surface-muted) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  /* Tiptap editor skin */
+  .tiptap {
+    outline: none;
+  }
+  .tiptap p { margin: 0 0 0.75em 0; }
+  .tiptap p.is-editor-empty:first-child::before {
+    color: var(--ink-4);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+  .tiptap h1 { font-size: 1.875rem; line-height: 1.2; margin: 1em 0 0.5em; font-weight: 600; }
+  .tiptap h2 { font-size: 1.5rem; line-height: 1.25; margin: 1em 0 0.4em; font-weight: 600; }
+  .tiptap h3 { font-size: 1.25rem; line-height: 1.3; margin: 1em 0 0.4em; font-weight: 600; }
+  .tiptap a { color: var(--brand-blue); text-decoration: underline; text-underline-offset: 3px; }
+  .tiptap code {
+    font-family: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
+    background: var(--surface-muted);
+    padding: 0.125em 0.375em;
+    border-radius: 6px;
+    font-size: 0.875em;
+  }
+  .tiptap pre {
+    background: var(--surface-muted);
+    border-radius: 12px;
+    padding: 16px;
+    font-family: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    overflow-x: auto;
+  }
+  .tiptap pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+  }
+  .tiptap ul, .tiptap ol { padding-left: 1.5rem; margin: 0 0 0.75em; }
+  .tiptap ul { list-style: disc; }
+  .tiptap ol { list-style: decimal; }
+  .tiptap blockquote {
+    border-left: 3px solid var(--brand-blue);
+    padding-left: 1rem;
+    color: var(--ink-2);
+    margin: 0.75em 0;
+  }
+  .tiptap img {
+    max-width: 100%;
+    border-radius: 12px;
+    margin: 0.75em 0;
+  }
+  .tiptap hr {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 1.5em 0;
+  }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
