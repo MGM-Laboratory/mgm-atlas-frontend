@@ -39,10 +39,11 @@ export function ProjectThumbnail({
 
   React.useEffect(() => {
     if (!hoverPlay || !isVideo || !videoRef.current) return;
-    void videoRef.current.play().catch(() => undefined);
+    const video = videoRef.current;
+    void video.play().catch(() => undefined);
     return () => {
-      videoRef.current?.pause();
-      if (videoRef.current) videoRef.current.currentTime = 0;
+      video?.pause();
+      if (video) video.currentTime = 0;
     };
   }, [hoverPlay, isVideo]);
 

@@ -1,7 +1,10 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { api } from '@/lib/api/server';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import type { DiscoveryPayload } from '@/lib/types';
 import { Container } from '@/components/layout/container';
@@ -12,10 +15,44 @@ import { GlobalSearchBar } from '@/components/projects/search-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 
-export const metadata: Metadata = { title: 'Discover' };
+export default function DashboardPage() {
+  const [data, setData] = useState<DiscoveryPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function DashboardPage() {
-  const data = await api<DiscoveryPayload>(apiPaths.discovery());
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const result = await api<DiscoveryPayload>(apiPaths.discovery());
+        setData(result);
+      } catch (err) {
+        console.error('Failed to load dashboard:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Container size="2xl" className="space-y-12 py-12">
+        <div className="text-center text-ink-2">Loading...</div>
+      </Container>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Container size="2xl" className="space-y-12 py-12">
+        <div className="rounded border border-red-200 bg-red-50 p-4 text-red-600">
+          {error || 'Failed to load dashboard'}
+        </div>
+      </Container>
+    );
+  }
 
   const hasMyProjects =
     data.myProjects.managed.length > 0 || data.myProjects.contributing.length > 0;

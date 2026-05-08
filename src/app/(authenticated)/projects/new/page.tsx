@@ -1,17 +1,44 @@
-import type { Metadata } from 'next';
-import { api } from '@/lib/api/server';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import type { CollaborationRole, Tag } from '@/lib/types';
 import { Container } from '@/components/layout/container';
 import { NewProjectWizard } from '@/components/projects/new/wizard';
 
-export const metadata: Metadata = { title: 'New project' };
+export default function NewProjectPage() {
+  const [grouped, setGrouped] = useState<{ category: string; items: Tag[] }[] | null>(null);
+  const [roles, setRoles] = useState<CollaborationRole[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function NewProjectPage() {
-  const [grouped, roles] = await Promise.all([
-    api<{ category: string; items: Tag[] }[]>(apiPaths.tagsGrouped()),
-    api<CollaborationRole[]>(apiPaths.collaborationRoles()),
-  ]);
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [tagsData, rolesData] = await Promise.all([
+          api<{ category: string; items: Tag[] }[]>(apiPaths.tagsGrouped()),
+          api<CollaborationRole[]>(apiPaths.collaborationRoles()),
+        ]);
+        setGrouped(tagsData);
+        setRoles(rolesData);
+      } catch (err) {
+        console.error('Failed to fetch project data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading || !grouped || !roles) {
+    return (
+      <Container size="lg" className="py-12">
+        <div className="h-40 animate-pulse rounded bg-line" />
+      </Container>
+    );
+  }
 
   return (
     <Container size="lg" className="py-12">

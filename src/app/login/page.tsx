@@ -1,25 +1,21 @@
 import { redirect } from 'next/navigation';
-import { auth, signIn } from '@/auth';
-import { Button } from '@/components/ui/button';
+import { getStoredSession } from '@/lib/auth-client';
 import { Wordmark } from '@/components/brand/wordmark';
 import { PatternCorner } from '@/components/brand/pattern-corner';
 import { ShapeSignature } from '@/components/brand/shape-signature';
+import { LoginClient } from '@/components/auth/login-client';
 
 interface PageProps {
-  searchParams: Promise<{ callbackUrl?: string; reason?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; reason?: string; error?: string }>;
 }
 
 export default async function LoginPage({ searchParams }: PageProps) {
-  const session = await auth();
+  const session = getStoredSession();
   const params = await searchParams;
-  if (session && !session.error) {
-    redirect(params.callbackUrl ?? '/dashboard');
-  }
 
-  async function login() {
-    'use server';
-    const params = await searchParams;
-    await signIn('keycloak', { redirectTo: params.callbackUrl ?? '/dashboard' });
+  // If already logged in, redirect to dashboard
+  if (session) {
+    redirect(params.callbackUrl ?? '/dashboard');
   }
 
   return (
@@ -47,11 +43,13 @@ export default async function LoginPage({ searchParams }: PageProps) {
             </div>
           ) : null}
 
-          <form action={login} className="mt-6">
-            <Button type="submit" size="lg" className="w-full">
-              Continue with Keycloak
-            </Button>
-          </form>
+          {params.error ? (
+            <div className="mt-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-600">
+              Authentication failed: {params.error}. Please try again.
+            </div>
+          ) : null}
+
+          <LoginClient callbackUrl={params.callbackUrl} />
 
           <p className="mt-6 text-[13px] text-ink-3">
             You will be redirected to{' '}
