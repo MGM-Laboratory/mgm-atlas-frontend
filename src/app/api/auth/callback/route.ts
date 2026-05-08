@@ -71,6 +71,19 @@ export async function GET(request: NextRequest) {
 
     // Call backend to create a session
     const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+    
+    if (!backendUrl) {
+      console.error('Missing NEXT_PUBLIC_API_URL environment variable');
+      const url = new URL('/login', request.url);
+      url.searchParams.set('error', 'missing_api_url');
+      return NextResponse.redirect(url);
+    }
+
+    console.log('Calling backend session creation:', {
+      url: `${backendUrl}/auth/login`,
+      userInfo,
+    });
+
     const sessionResponse = await fetch(`${backendUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,7 +100,11 @@ export async function GET(request: NextRequest) {
     });
 
     if (!sessionResponse.ok) {
-      console.error('Session creation failed:', await sessionResponse.text());
+      const errorText = await sessionResponse.text();
+      console.error('Session creation failed:', {
+        status: sessionResponse.status,
+        error: errorText,
+      });
       const url = new URL('/login', request.url);
       url.searchParams.set('error', 'session_creation_failed');
       return NextResponse.redirect(url);
