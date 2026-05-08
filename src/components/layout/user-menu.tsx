@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { LogOut, Settings, ShieldCheck, User as UserIcon } from 'lucide-react';
-import { signOut, useSession } from 'next-auth/react';
+import { clearSession, getStoredSession } from '@/lib/auth-client';
 import { Avatar } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -18,9 +19,15 @@ interface Props {
 }
 
 export function UserMenu({ isAdmin }: Props) {
-  const { data } = useSession();
-  const user = data?.user;
+  const router = useRouter();
+  const session = getStoredSession();
+  const user = session?.user;
   const accountUrl = process.env.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL;
+
+  const handleLogout = () => {
+    clearSession();
+    router.push('/login');
+  };
 
   return (
     <DropdownMenu>
@@ -63,10 +70,7 @@ export function UserMenu({ isAdmin }: Props) {
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="text-brand-red"
-        >
+        <DropdownMenuItem onClick={handleLogout} className="text-brand-red">
           <LogOut className="h-4 w-4" strokeWidth={2.25} />
           Sign out
         </DropdownMenuItem>
@@ -74,3 +78,4 @@ export function UserMenu({ isAdmin }: Props) {
     </DropdownMenu>
   );
 }
+
