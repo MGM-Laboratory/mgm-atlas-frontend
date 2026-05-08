@@ -29,6 +29,8 @@ async function fetchHealth(): Promise<HealthPayload | null> {
 export default async function StatusPage() {
   const data = await fetchHealth();
   const isUp = data?.status === 'ok';
+  const details = data?.details && typeof data.details === 'object' ? data.details : null;
+  const detailEntries = details ? Object.entries(details) : [];
 
   return (
     <main className="grid min-h-svh place-items-center bg-white px-6">
@@ -45,9 +47,9 @@ export default async function StatusPage() {
           MGM Atlas API health, observed in real time.
         </p>
 
-        {data ? (
+        {detailEntries.length > 0 ? (
           <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-white text-left">
-            {Object.entries(data.details).map(([key, value]) => {
+            {detailEntries.map(([key, value]) => {
               const ok = value.status === 'up';
               return (
                 <li key={key} className="flex items-center justify-between px-5 py-3">
