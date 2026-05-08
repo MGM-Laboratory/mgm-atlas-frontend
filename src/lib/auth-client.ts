@@ -137,10 +137,21 @@ export function extractUserFromIdToken(idToken: string): {
 export function buildKeycloakAuthUrl(): string {
   const keycloakIssuer = process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER;
   const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID;
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const redirectUri = `${appUrl}/api/auth/callback`;
+
+  if (!keycloakIssuer) {
+    throw new Error('Missing NEXT_PUBLIC_KEYCLOAK_ISSUER environment variable');
+  }
+  if (!clientId) {
+    throw new Error('Missing NEXT_PUBLIC_KEYCLOAK_CLIENT_ID environment variable');
+  }
+  if (!appUrl) {
+    throw new Error('Missing NEXT_PUBLIC_APP_URL environment variable');
+  }
 
   const params = new URLSearchParams({
-    client_id: clientId!,
+    client_id: clientId,
     response_type: 'code',
     scope: 'openid profile email offline_access',
     redirect_uri: redirectUri,
