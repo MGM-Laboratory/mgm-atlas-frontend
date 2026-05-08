@@ -58,13 +58,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         {...rest}
       >
-        {loading ? (
-          <span
-            className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-current border-r-transparent"
-            aria-hidden="true"
-          />
-        ) : null}
-        {children}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading ? (
+              <span
+                className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-current border-r-transparent"
+                aria-hidden="true"
+              />
+            ) : null}
+            {children}
+          </>
+        )}
       </Comp>
     );
   },
