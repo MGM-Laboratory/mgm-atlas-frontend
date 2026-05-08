@@ -47,7 +47,9 @@ jobs:
           build-args: |
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
-            NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL=${{ secrets.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL }}
+            NEXT_PUBLIC_KEYCLOAK_ISSUER=${{ vars.NEXT_PUBLIC_KEYCLOAK_ISSUER }}
+            NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=${{ vars.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID }}
+            NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL=${{ vars.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL }}
           tags: |
             ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:staging
             ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:staging-${{ steps.meta.outputs.ts }}
