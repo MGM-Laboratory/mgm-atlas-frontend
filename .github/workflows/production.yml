@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: labmgm/mgm-atlas-frontend
+  IMAGE_NAME: mgm-atlas-frontend
   ENVIRONMENT: production
 
 jobs:
@@ -16,6 +16,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -48,9 +49,11 @@ jobs:
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
             NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL=${{ secrets.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL }}
+
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:latest
-            ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:latest-${{ steps.meta.outputs.ts }}
-            ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:latest-${{ steps.meta.outputs.sha }}
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest-${{ steps.meta.outputs.ts }}
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest-${{ steps.meta.outputs.sha }}
+
           cache-from: type=gha
           cache-to: type=gha,mode=max
