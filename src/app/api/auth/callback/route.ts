@@ -123,10 +123,14 @@ export async function GET(request: NextRequest) {
       };
     };
 
-    // Redirect to the callback URL with session data
-    // Frontend will extract and store in localStorage
-    const redirectUrl = new URL(callbackUrl, request.url);
+    // Redirect to root page with session data
+    // The root page's useAuthCallback hook will extract and store in localStorage
+    const redirectUrl = new URL('/', request.url);
     redirectUrl.searchParams.set('session', JSON.stringify(sessionData));
+    // Preserve callback URL for final redirect
+    if (callbackUrl !== '/dashboard') {
+      redirectUrl.searchParams.set('callback_url', callbackUrl);
+    }
 
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
