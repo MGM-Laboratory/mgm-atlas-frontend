@@ -3,9 +3,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredSession } from '@/lib/auth-client';
-import { api } from '@/lib/api/client';
-import { apiPaths } from '@/lib/api/paths';
-import type { SessionUser } from '@/lib/types';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 
@@ -32,3 +29,4 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
     </div>
   );
 }
+

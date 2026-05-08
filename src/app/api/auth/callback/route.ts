@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
         keycloakId: string;
         email: string;
         name: string;
+        avatarUrl: string | null;
         isAdmin: boolean;
       };
     };

@@ -15,8 +15,8 @@ export interface Session {
     keycloakId: string;
     email: string;
     name: string;
-    image?: string;
-    isAdmin?: boolean;
+    avatarUrl: string | null;
+    isAdmin: boolean;
   };
   expiresAt: Date;
 }

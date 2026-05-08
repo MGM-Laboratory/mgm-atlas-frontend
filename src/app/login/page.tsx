@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { getStoredSession } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
 import { PatternCorner } from '@/components/brand/pattern-corner';
 import { ShapeSignature } from '@/components/brand/shape-signature';

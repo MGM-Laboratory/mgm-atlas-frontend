@@ -36,7 +36,7 @@ export function UserMenu({ isAdmin }: Props) {
           aria-label={user?.name ? `${user.name} menu` : 'Account menu'}
           className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
-          <Avatar src={user?.image ?? undefined} name={user?.name ?? '?'} size={32} />
+          <Avatar src={user?.avatarUrl ?? undefined} name={user?.name ?? '?'} size={32} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[240px]">
