@@ -20,6 +20,7 @@ FROM base AS build
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN mkdir -p /app/public
 # Bake-time public env vars (override in CI as build-args if needed).
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_API_URL
