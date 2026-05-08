@@ -25,7 +25,7 @@ type AppJWT = {
 
 async function refreshAccessToken(token: { refreshToken?: string }) {
   if (!token.refreshToken) return null;
-  const issuer = process.env.AUTH_KEYCLOAK_ISSUER!;
+  const issuer = process.env.AUTH_KEYCLOAK_ISSUER!.replace(/\/+$/, '');
   const clientId = process.env.AUTH_KEYCLOAK_ID!;
   const clientSecret = process.env.AUTH_KEYCLOAK_SECRET!;
 
@@ -58,11 +58,12 @@ async function refreshAccessToken(token: { refreshToken?: string }) {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     Keycloak({
       clientId: process.env.AUTH_KEYCLOAK_ID,
       clientSecret: process.env.AUTH_KEYCLOAK_SECRET,
-      issuer: process.env.AUTH_KEYCLOAK_ISSUER,
+      issuer: process.env.AUTH_KEYCLOAK_ISSUER?.replace(/\/+$/, ''),
       authorization: { params: { scope: 'openid profile email' } },
     }),
   ],
@@ -74,7 +75,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token: rawToken, account, profile }) {
       const token = rawToken as AppJWT;
-      // Initial sign-in: copy tokens onto the JWT.
       if (account && account.access_token) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
@@ -87,11 +87,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
         return token;
       }
-      // Token still valid — return as-is.
       if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
         return token;
       }
-      // Otherwise refresh.
       const refreshed = await refreshAccessToken(token);
       if (!refreshed) {
         return { ...token, error: 'RefreshAccessTokenError' };
