@@ -1,24 +1,32 @@
-import { redirect } from 'next/navigation';
-import { auth } from '@/auth';
-import { api } from '@/lib/api/server';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { getStoredSession } from '@/lib/auth-client';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import type { SessionUser } from '@/lib/types';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 
-export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-  if (!session) redirect('/login');
+export default function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const session = getStoredSession();
 
-  // Fetch the synced Atlas user (carries isAdmin) so the header can render
-  // the admin entry point without an extra client round-trip.
-  const me = await api<SessionUser & { lastLoginAt: string | null }>(apiPaths.session()).catch(
-    () => null,
-  );
+  useEffect(() => {
+    // Redirect to login if no session
+    if (!session) {
+      router.push('/login');
+    }
+  }, [session, router]);
+
+  if (!session) {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <div className="flex min-h-svh flex-col">
-      <Header user={me} />
+      <Header user={session.user} />
       <main className="flex-1">{children}</main>
       <Footer />
     </div>

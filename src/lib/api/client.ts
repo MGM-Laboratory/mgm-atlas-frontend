@@ -1,6 +1,6 @@
 'use client';
 
-import { getSession } from 'next-auth/react';
+import { getSessionId } from '@/lib/auth-client';
 import { ApiError } from './error';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
@@ -9,14 +9,13 @@ interface FetchOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
 }
 
-async function bearer() {
-  const session = await getSession();
-  return session?.accessToken;
+function getSessionToken() {
+  return getSessionId();
 }
 
-/** Client-only fetch wrapper that pulls the session bearer token. */
+/** Client-only fetch wrapper that includes the session token in Authorization header. */
 export async function api<T = unknown>(path: string, opts: FetchOptions = {}): Promise<T> {
-  const token = await bearer();
+  const token = getSessionToken();
   const headers = new Headers(opts.headers);
   if (!headers.has('content-type') && opts.body !== undefined) {
     headers.set('content-type', 'application/json');
