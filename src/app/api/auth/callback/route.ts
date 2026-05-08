@@ -7,25 +7,35 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get('state');
   const error = searchParams.get('error');
   const callbackUrl = searchParams.get('callback_url') || '/dashboard';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  // Helper to construct redirect URLs using the configured app URL
+  const createRedirectUrl = (path: string, errorCode?: string) => {
+    if (!appUrl) {
+      console.error('Missing NEXT_PUBLIC_APP_URL');
+      return new URL('/login', request.url); // Fallback
+    }
+    const url = new URL(path, appUrl);
+    if (errorCode) {
+      url.searchParams.set('error', errorCode);
+    }
+    return url;
+  };
 
   // Handle Keycloak errors
   if (error) {
-    const url = new URL('/login', request.url);
-    url.searchParams.set('error', error);
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(createRedirectUrl('/login', error));
   }
 
   if (!code || !state) {
-    const url = new URL('/login', request.url);
-    url.searchParams.set('error', 'missing_parameters');
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(createRedirectUrl('/login', 'missing_parameters'));
   }
 
   try {
     const keycloakIssuer = process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER;
     const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID;
     const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET;
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`;
+    const redirectUri = `${appUrl}/api/auth/callback`;
 
     // Exchange authorization code for tokens
     const tokenResponse = await fetch(
@@ -46,9 +56,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       console.error('Token exchange failed:', await tokenResponse.text());
-      const url = new URL('/login', request.url);
-      url.searchParams.set('error', 'token_exchange_failed');
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(createRedirectUrl('/login', 'token_exchange_failed'));
     }
 
     const tokenData = (await tokenResponse.json()) as {
@@ -64,9 +72,7 @@ export async function GET(request: NextRequest) {
       : null;
 
     if (!userInfo) {
-      const url = new URL('/login', request.url);
-      url.searchParams.set('error', 'invalid_id_token');
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(createRedirectUrl('/login', 'invalid_id_token'));
     }
 
     // Call backend to create a session
@@ -74,9 +80,7 @@ export async function GET(request: NextRequest) {
     
     if (!backendUrl) {
       console.error('Missing NEXT_PUBLIC_API_URL environment variable');
-      const url = new URL('/login', request.url);
-      url.searchParams.set('error', 'missing_api_url');
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(createRedirectUrl('/login', 'missing_api_url'));
     }
 
     console.log('Calling backend session creation:', {
@@ -105,9 +109,7 @@ export async function GET(request: NextRequest) {
         status: sessionResponse.status,
         error: errorText,
       });
-      const url = new URL('/login', request.url);
-      url.searchParams.set('error', 'session_creation_failed');
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(createRedirectUrl('/login', 'session_creation_failed'));
     }
 
     const sessionData = (await sessionResponse.json()) as {
@@ -125,7 +127,7 @@ export async function GET(request: NextRequest) {
 
     // Redirect to root page with session data
     // The root page's useAuthCallback hook will extract and store in localStorage
-    const redirectUrl = new URL('/', request.url);
+    const redirectUrl = new URL('/', appUrl);
     redirectUrl.searchParams.set('session', JSON.stringify(sessionData));
     // Preserve callback URL for final redirect
     if (callbackUrl !== '/dashboard') {
@@ -135,8 +137,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error('Auth callback error:', error);
-    const url = new URL('/login', request.url);
-    url.searchParams.set('error', 'internal_error');
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(createRedirectUrl('/login', 'internal_error'));
   }
 }
