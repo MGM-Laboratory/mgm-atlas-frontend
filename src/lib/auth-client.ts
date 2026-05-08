@@ -165,21 +165,7 @@ export function buildKeycloakAuthUrl(): string {
  * Generate and store a random state parameter for OAuth2 CSRF protection
  */
 function generateState(): string {
-  const state = crypto.getRandomValues(new Uint8Array(16)).reduce((acc, byte) => {
+  return crypto.getRandomValues(new Uint8Array(16)).reduce((acc, byte) => {
     return acc + byte.toString(16).padStart(2, '0');
   }, '');
-  if (typeof window !== 'undefined') {
-    sessionStorage.setItem('oauth_state', state);
-  }
-  return state;
-}
-
-/**
- * Verify the state parameter returned from Keycloak
- */
-export function verifyState(state: string): boolean {
-  if (typeof window === 'undefined') return false;
-  const storedState = sessionStorage.getItem('oauth_state');
-  sessionStorage.removeItem('oauth_state');
-  return state === storedState;
 }

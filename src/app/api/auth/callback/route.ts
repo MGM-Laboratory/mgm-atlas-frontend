@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractUserFromIdToken, verifyState } from '@/lib/auth-client';
+import { extractUserFromIdToken } from '@/lib/auth-client';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -15,16 +15,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (!code) {
+  if (!code || !state) {
     const url = new URL('/login', request.url);
-    url.searchParams.set('error', 'missing_code');
-    return NextResponse.redirect(url);
-  }
-
-  // Verify state parameter for CSRF protection
-  if (!state || !verifyState(state)) {
-    const url = new URL('/login', request.url);
-    url.searchParams.set('error', 'invalid_state');
+    url.searchParams.set('error', 'missing_parameters');
     return NextResponse.redirect(url);
   }
 
