@@ -1,7 +1,10 @@
-import type { Metadata } from 'next';
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { api } from '@/lib/api/server';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import type { CollaborationRole, Paginated, ProjectCard, Tag } from '@/lib/types';
 import { Container } from '@/components/layout/container';
@@ -10,8 +13,6 @@ import { GlobalSearchBar } from '@/components/projects/search-bar';
 import { FilterPanel } from '@/components/projects/filter-panel';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
-
-export const metadata: Metadata = { title: 'Projects' };
 
 interface PageProps {
   searchParams: Promise<{
@@ -25,25 +26,62 @@ interface PageProps {
   }>;
 }
 
-export default async function ProjectsBrowsePage({ searchParams }: PageProps) {
-  const sp = await searchParams;
-  const path = apiPaths.projects({
-    q: sp.q,
-    phase: sp.phase ? sp.phase.split(',') : undefined,
-    tagIds: sp.tagIds ? sp.tagIds.split(',') : undefined,
-    recruitingFor: sp.recruitingFor,
-    bookmarkedOnly: sp.bookmarkedOnly === 'true',
-    page: sp.page ? Number(sp.page) : 1,
-    sort: sp.sort,
-  });
+export default function ProjectsBrowsePage() {
+  const searchParams = useSearchParams();
+  const [data, setData] = useState<Paginated<ProjectCard> | null>(null);
+  const [grouped, setGrouped] = useState<{ category: string; items: Tag[] }[] | null>(null);
+  const [roles, setRoles] = useState<CollaborationRole[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const [data, grouped, roles] = await Promise.all([
-    api<Paginated<ProjectCard>>(path),
-    api<{ category: string; items: Tag[] }[]>(apiPaths.tagsGrouped()),
-    api<CollaborationRole[]>(apiPaths.collaborationRoles()),
-  ]);
+  const q = searchParams.get('q') || undefined;
+  const phase = searchParams.get('phase') ? searchParams.get('phase')!.split(',') : undefined;
+  const tagIds = searchParams.get('tagIds') ? searchParams.get('tagIds')!.split(',') : undefined;
+  const recruitingFor = searchParams.get('recruitingFor') || undefined;
+  const bookmarkedOnly = searchParams.get('bookmarkedOnly') === 'true';
+  const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
+  const sort = searchParams.get('sort') || undefined;
 
-  const page = data.meta.page;
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const path = apiPaths.projects({
+          q,
+          phase,
+          tagIds,
+          recruitingFor,
+          bookmarkedOnly,
+          page,
+          sort,
+        });
+
+        const [projectsData, tagsData, rolesData] = await Promise.all([
+          api<Paginated<ProjectCard>>(path),
+          api<{ category: string; items: Tag[] }[]>(apiPaths.tagsGrouped()),
+          api<CollaborationRole[]>(apiPaths.collaborationRoles()),
+        ]);
+
+        setData(projectsData);
+        setGrouped(tagsData);
+        setRoles(rolesData);
+      } catch (err) {
+        console.error('Failed to fetch projects:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [q, phase, tagIds, recruitingFor, bookmarkedOnly, page, sort]);
+
+  if (loading || !data || !grouped || !roles) {
+    return (
+      <Container size="2xl" className="space-y-8 py-12">
+        <div className="h-40 animate-pulse rounded bg-line" />
+      </Container>
+    );
+  }
+
   const totalPages = data.meta.totalPages;
 
   return (
@@ -53,7 +91,7 @@ export default async function ProjectsBrowsePage({ searchParams }: PageProps) {
           Browse projects
         </h1>
         <p className="max-w-prose text-body text-ink-2">
-          {sp.q ? <>Showing results for <span className="font-medium text-ink">&ldquo;{sp.q}&rdquo;</span>.</> : 'Find what the lab is working on. Filter by phase, tags, or open roles.'}
+          {q ? <>Showing results for <span className="font-medium text-ink">&ldquo;{q}&rdquo;</span>.</> : 'Find what the lab is working on. Filter by phase, tags, or open roles.'}
         </p>
       </div>
 
@@ -71,10 +109,10 @@ export default async function ProjectsBrowsePage({ searchParams }: PageProps) {
           action={
             <div className="flex gap-3">
               <Button asChild variant="secondary">
-                <Link href={'/projects' as never}>Clear filters</Link>
+                <Link href={'/projects'}>Clear filters</Link>
               </Button>
               <Button asChild>
-                <Link href={'/projects/new' as never}>
+                <Link href={'/projects/new'}>
                   <Plus className="h-4 w-4" strokeWidth={2.25} />
                   Start a project
                 </Link>
@@ -84,14 +122,14 @@ export default async function ProjectsBrowsePage({ searchParams }: PageProps) {
         />
       ) : (
         <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {data.items.map((p) => (
-              <ProjectCardView key={p.id} project={p} width={undefined as unknown as number} static />
+              <ProjectCardView key={p.id} project={p} static />
             ))}
           </div>
 
           {totalPages > 1 ? (
-            <Pagination page={page} totalPages={totalPages} qs={await searchParams} />
+            <Pagination page={page} totalPages={totalPages} searchParams={searchParams} />
           ) : null}
         </>
       )}
@@ -102,20 +140,16 @@ export default async function ProjectsBrowsePage({ searchParams }: PageProps) {
 function Pagination({
   page,
   totalPages,
-  qs,
+  searchParams,
 }: {
   page: number;
   totalPages: number;
-  qs: Awaited<PageProps['searchParams']>;
+  searchParams: ReturnType<typeof useSearchParams>;
 }) {
   const linkFor = (target: number) => {
-    const next = new URLSearchParams();
-    Object.entries(qs).forEach(([k, v]) => {
-      if (k === 'page' || !v) return;
-      next.set(k, v as string);
-    });
+    const next = new URLSearchParams(searchParams.toString());
     next.set('page', String(target));
-    return `/projects?${next.toString()}` as never;
+    return `/projects?${next.toString()}`;
   };
 
   return (

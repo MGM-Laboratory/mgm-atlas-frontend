@@ -3,7 +3,6 @@
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { SessionProvider } from 'next-auth/react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ToastProvider } from '@/components/ui/toast';
 
@@ -29,13 +28,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <SessionProvider refetchOnWindowFocus={false}>
-      <QueryClientProvider client={client}>
-        <TooltipProvider delayDuration={300}>
-          <ToastProvider>{children}</ToastProvider>
-        </TooltipProvider>
-        {process.env.NODE_ENV === 'development' ? <ReactQueryDevtools initialIsOpen={false} /> : null}
-      </QueryClientProvider>
-    </SessionProvider>
+    <QueryClientProvider client={client}>
+      <TooltipProvider delayDuration={300}>
+        <ToastProvider>{children}</ToastProvider>
+      </TooltipProvider>
+      {process.env.NODE_ENV === 'development' ? <ReactQueryDevtools initialIsOpen={false} /> : null}
+    </QueryClientProvider>
   );
 }

@@ -1,6 +1,8 @@
-import type { Metadata } from 'next';
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import {
   ArrowUpRight,
   ExternalLink,
@@ -11,9 +13,8 @@ import {
   Settings2,
   Users,
 } from 'lucide-react';
-import { api } from '@/lib/api/server';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
-import { ApiError } from '@/lib/api/error';
 import { isInsider, type ProjectDetail, type ProjectDetailInsider, type SessionUser } from '@/lib/types';
 import { Container } from '@/components/layout/container';
 import { Avatar } from '@/components/ui/avatar';
@@ -26,32 +27,50 @@ import { BookmarkButton } from '@/components/projects/bookmark-button';
 import { RichTextEditor } from '@/components/rich-text/editor';
 import { PROJECT_PHASE_LABEL } from '@/lib/types';
 
-interface PageProps {
-  params: Promise<{ slug: string }>;
-}
+export default function ProjectDetailPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const slug = params.slug as string;
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-  try {
-    const project = await api<ProjectDetail>(apiPaths.project(slug));
-    return { title: project.title, description: project.shortDescription };
-  } catch {
-    return { title: 'Project' };
+  const [project, setProject] = useState<ProjectDetail | null>(null);
+  const [me, setMe] = useState<SessionUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [projectData, userData] = await Promise.all([
+          api<ProjectDetail>(apiPaths.project(slug)),
+          api<SessionUser>(apiPaths.session()).catch(() => null),
+        ]);
+        setProject(projectData);
+        setMe(userData);
+      } catch (err) {
+        console.error('Failed to fetch project:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [slug]);
+
+  if (loading || !project) {
+    return (
+      <Container size="2xl" className="space-y-10 py-10">
+        <div className="h-40 animate-pulse rounded bg-line" />
+      </Container>
+    );
   }
-}
 
-export default async function ProjectDetailPage({ params }: PageProps) {
-  const { slug } = await params;
-
-  let project: ProjectDetail;
-  try {
-    project = await api<ProjectDetail>(apiPaths.project(slug));
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) notFound();
-    throw err;
-  }
-  const me = await api<SessionUser>(apiPaths.session()).catch(() => null);
   const insider = isInsider(project) ? (project as ProjectDetailInsider) : null;
+  const canContribute =
+    !!me &&
+    project.access.level !== 'admin' &&
+    project.access.level !== 'manager' &&
+    project.access.level !== 'contributor' &&
+    !project.archivedAt;
 
   return (
     <>
@@ -59,7 +78,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         <div className="grid gap-10 lg:grid-cols-12">
           <div className="lg:col-span-8">
             <Link
-              href={'/projects' as never}
+              href={'/projects'}
               className="text-[13px] font-medium text-ink-3 hover:text-ink"
             >
               ← All projects
@@ -84,22 +103,22 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
-              {project.collaborationRoles.length > 0 && project.access.level !== 'admin' && project.access.level !== 'manager' && project.access.level !== 'contributor' ? (
+              {canContribute ? (
                 <Button asChild size="lg">
-                  <Link href={`/projects/${project.slug}?contribute=1` as never}>
+                  <Link href={`/projects/${project.slug}?contribute=1`}>
                     Contribute to this project
                   </Link>
                 </Button>
               ) : null}
               {project.access.isManager ? (
                 <Button asChild variant="secondary" size="lg">
-                  <Link href={`/projects/${project.slug}/manage` as never}>
+                  <Link href={`/projects/${project.slug}/manage`}>
                     <Settings2 className="h-4 w-4" strokeWidth={2.25} />
                     Manage
                   </Link>
                 </Button>
               ) : null}
-              <BookmarkButton projectId={project.id} />
+              <BookmarkButton projectId={project.id} bookmarked={project.bookmarked ?? false} />
             </div>
           </div>
 
@@ -215,7 +234,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         </div>
       </Container>
 
-      {project.collaborationRoles.length > 0 && me && project.access.level !== 'admin' && project.access.level !== 'manager' && project.access.level !== 'contributor' ? (
+      {canContribute && me ? (
         <ContributeModal
           projectSlug={project.slug}
           projectTitle={project.title}

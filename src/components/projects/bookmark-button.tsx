@@ -18,12 +18,19 @@ export function BookmarkButton({
   const { show } = useToast();
   const [bookmarked, setBookmarked] = React.useState(initialBookmarked);
 
+  // Sync if the server-provided value changes (e.g. after navigation/refresh).
+  React.useEffect(() => {
+    setBookmarked(initialBookmarked);
+  }, [initialBookmarked]);
+
   const toggle = useMutation({
-    mutationFn: () =>
-      api(apiPaths.bookmark(projectId), { method: bookmarked ? 'DELETE' : 'POST' }),
-    onMutate: () => setBookmarked((b) => !b),
-    onError: () => {
-      setBookmarked((b) => !b);
+    mutationFn: (next: boolean) =>
+      api(apiPaths.bookmark(projectId), { method: next ? 'POST' : 'DELETE' }),
+    onMutate: (next) => {
+      setBookmarked(next);
+    },
+    onError: (_err, next) => {
+      setBookmarked(!next);
       show({ tone: 'danger', title: 'Could not save bookmark.' });
     },
   });
@@ -32,8 +39,9 @@ export function BookmarkButton({
     <Button
       variant="secondary"
       size="md"
-      onClick={() => toggle.mutate()}
+      onClick={() => toggle.mutate(!bookmarked)}
       aria-pressed={bookmarked}
+      aria-label={bookmarked ? 'Remove from saved projects' : 'Save project'}
     >
       {bookmarked ? (
         <BookmarkCheck className="h-4 w-4 text-brand-blue" strokeWidth={2.25} />

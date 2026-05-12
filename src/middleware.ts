@@ -1,30 +1,31 @@
-import { auth } from '@/auth';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_ROUTES = ['/login', '/health', '/status', '/api/auth'];
 
-export default auth((req) => {
+/**
+ * Middleware to protect routes. Since we're using localStorage for sessions,
+ * we can't validate them server-side here. Instead, we:
+ * 1. Allow all requests through
+ * 2. Let the frontend check localStorage and redirect to login if needed
+ * 3. API calls include sessionId in Authorization header, validated by backend
+ */
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Allow public routes
   const isPublic = PUBLIC_ROUTES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
-  if (isPublic) return NextResponse.next();
 
-  if (!req.auth) {
-    const url = new URL('/login', req.url);
-    url.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(url);
+  if (isPublic) {
+    return NextResponse.next();
   }
 
-  if (req.auth.error === 'RefreshAccessTokenError') {
-    const url = new URL('/login', req.url);
-    url.searchParams.set('reason', 'session-expired');
-    return NextResponse.redirect(url);
-  }
-
+  // For protected routes, we can't check session server-side with localStorage.
+  // The frontend components will handle redirection to /login.
+  // All API calls will be rejected by the backend if sessionId is invalid.
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|brand/.*).*)'],

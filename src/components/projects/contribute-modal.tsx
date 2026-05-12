@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CheckCircle2, Mail, Send } from 'lucide-react';
+import { CheckCircle2, Mail, Send, Sparkles } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,21 +17,31 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label, FieldHelp } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 
-const schema = z.object({
-  role: z.string().min(1, 'Pick a role you want to contribute as.'),
-  message: z.string().min(20, 'Tell the team a bit about why — at least 20 characters.').max(2000),
-});
+const OTHER = '__other__';
+
+const schema = z
+  .object({
+    role: z.string().min(1, 'Pick a role you want to contribute as.'),
+    customRole: z.string().optional(),
+    message: z.string().min(20, 'Tell the team a bit about why — at least 20 characters.').max(2000),
+  })
+  .refine(
+    (v) => v.role !== OTHER || (v.customRole && v.customRole.trim().length >= 2),
+    { path: ['customRole'], message: 'Type the role you want to apply as.' },
+  );
 type FormValues = z.infer<typeof schema>;
 
 interface Props {
   projectSlug: string;
   projectTitle: string;
-  /** Roles the project is currently recruiting for. */
+  /** Roles the project is currently recruiting for (may be empty). */
   collaborationRoles: string[];
   user: { name: string; email: string };
 }
@@ -77,12 +87,25 @@ function ModalBody({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { role: collaborationRoles[0] ?? '', message: '' },
+    defaultValues: {
+      role: collaborationRoles[0] ?? OTHER,
+      customRole: '',
+      message: '',
+    },
   });
+
+  const role = form.watch('role');
+  const customRole = form.watch('customRole') ?? '';
 
   const submit = useMutation({
     mutationFn: (values: FormValues) =>
-      api(apiPaths.contribute(projectSlug), { method: 'POST', body: values }),
+      api(apiPaths.contribute(projectSlug), {
+        method: 'POST',
+        body: {
+          role: values.role === OTHER ? values.customRole!.trim() : values.role,
+          message: values.message,
+        },
+      }),
     onSuccess: () => {
       setSubmitted(true);
       qc.invalidateQueries({ queryKey: ['discovery'] });
@@ -124,6 +147,27 @@ function ModalBody({
         </DialogDescription>
       </div>
 
+      {collaborationRoles.length > 0 ? (
+        <div className="rounded-lg border border-brand-blue/20 bg-brand-blue-50 p-3.5">
+          <div className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-[0.08em] text-brand-blue">
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
+            Open positions
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {collaborationRoles.map((r) => (
+              <Badge key={r} tone="info">
+                {r}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-line bg-surface-muted p-3.5 text-[12px] text-ink-3">
+          The team hasn&apos;t opened specific positions, but you can still propose how
+          you&apos;d like to contribute.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Label>Your name</Label>
@@ -147,9 +191,9 @@ function ModalBody({
       </div>
 
       <div>
-        <Label required>Role you want to contribute as</Label>
+        <Label required>Which division/role do you want to apply for?</Label>
         <Select
-          value={form.watch('role')}
+          value={role}
           onValueChange={(v) => form.setValue('role', v, { shouldValidate: true })}
         >
           <SelectTrigger>
@@ -161,9 +205,25 @@ function ModalBody({
                 {r}
               </SelectItem>
             ))}
+            <SelectItem value={OTHER}>Other (specify)…</SelectItem>
           </SelectContent>
         </Select>
         <FieldHelp error={form.formState.errors.role?.message} />
+
+        {role === OTHER ? (
+          <div className="mt-2.5">
+            <Input
+              autoFocus
+              placeholder="e.g. Marketing Lead, Researcher, UX Writer…"
+              maxLength={120}
+              invalid={!!form.formState.errors.customRole}
+              {...form.register('customRole')}
+            />
+            <FieldHelp error={form.formState.errors.customRole?.message}>
+              {120 - customRole.length} characters left.
+            </FieldHelp>
+          </div>
+        ) : null}
       </div>
 
       <div>
