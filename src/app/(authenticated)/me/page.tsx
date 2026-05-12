@@ -1,7 +1,9 @@
-import type { Metadata } from 'next';
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Settings2 } from 'lucide-react';
-import { api } from '@/lib/api/server';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import type { DashboardPayload, SessionUser } from '@/lib/types';
 import { Container } from '@/components/layout/container';
@@ -13,13 +15,38 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { formatRelative } from '@/lib/utils';
 
-export const metadata: Metadata = { title: 'Your dashboard' };
+export default function MyDashboardPage() {
+  const [me, setMe] = useState<SessionUser & { lastLoginAt?: string; bio?: string | null } | null>(null);
+  const [dash, setDash] = useState<DashboardPayload | null>(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function MyDashboardPage() {
-  const [me, dash] = await Promise.all([
-    api<SessionUser & { lastLoginAt?: string; bio?: string | null }>(apiPaths.me()),
-    api<DashboardPayload>(apiPaths.dashboard()),
-  ]);
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [meData, dashData] = await Promise.all([
+          api<SessionUser & { lastLoginAt?: string; bio?: string | null }>(apiPaths.me()),
+          api<DashboardPayload>(apiPaths.dashboard()),
+        ]);
+        setMe(meData);
+        setDash(dashData);
+      } catch (err) {
+        console.error('Failed to fetch dashboard:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading || !me || !dash) {
+    return (
+      <Container size="2xl" className="space-y-10 py-10">
+        <div className="h-40 animate-pulse rounded bg-line" />
+      </Container>
+    );
+  }
 
   return (
     <Container size="2xl" className="space-y-10 py-10">
@@ -37,7 +64,7 @@ export default async function MyDashboardPage() {
           </div>
         </div>
         <Button asChild>
-          <Link href={'/projects/new' as never}>
+          <Link href={'/projects/new'}>
             <Plus className="h-4 w-4" strokeWidth={2.25} />
             New project
           </Link>
@@ -71,7 +98,7 @@ export default async function MyDashboardPage() {
               description="Start one and you'll automatically be its first project manager."
               action={
                 <Button asChild>
-                  <Link href={'/projects/new' as never}>
+                  <Link href={'/projects/new'}>
                     <Plus className="h-4 w-4" strokeWidth={2.25} />
                     Start a project
                   </Link>
@@ -83,7 +110,7 @@ export default async function MyDashboardPage() {
               {dash.managed.map((p) => (
                 <Link
                   key={p.id}
-                  href={`/projects/${p.slug}/manage` as never}
+                  href={`/projects/${p.slug}/manage`}
                   className="group block"
                 >
                   <ProjectThumbnail
@@ -119,14 +146,14 @@ export default async function MyDashboardPage() {
               description="Browse projects and request to join the ones that match your skills."
               action={
                 <Button asChild variant="secondary">
-                  <Link href={'/projects' as never}>Browse projects</Link>
+                  <Link href={'/projects'}>Browse projects</Link>
                 </Button>
               }
             />
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {dash.contributing.map((p) => (
-                <Link key={p.id} href={`/projects/${p.slug}` as never} className="group block">
+                <Link key={p.id} href={`/projects/${p.slug}`} className="group block">
                   <ProjectThumbnail
                     thumbnailUrl={p.thumbnailUrl}
                     thumbnailType={p.thumbnailType}
@@ -157,7 +184,7 @@ export default async function MyDashboardPage() {
                 >
                   <div className="flex-1">
                     <Link
-                      href={`/projects/${r.project.slug}` as never}
+                      href={`/projects/${r.project.slug}`}
                       className="font-display text-[16px] font-semibold text-ink hover:text-brand-blue"
                     >
                       {r.project.title}
@@ -188,7 +215,7 @@ export default async function MyDashboardPage() {
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {dash.bookmarks.map((p) => (
-                <Link key={p.id} href={`/projects/${p.slug}` as never} className="group block">
+                <Link key={p.id} href={`/projects/${p.slug}`} className="group block">
                   <ProjectThumbnail
                     thumbnailUrl={p.thumbnailUrl}
                     thumbnailType={p.thumbnailType}

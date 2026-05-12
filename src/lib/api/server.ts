@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { auth } from '@/auth';
+import { getSessionId } from '@/lib/auth-client';
 import { ApiError } from './error';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
@@ -12,15 +12,15 @@ interface FetchOptions extends Omit<RequestInit, 'body'> {
   tags?: string[];
 }
 
-/** Server-only fetch wrapper that injects the Keycloak access token. */
+/** Server-only fetch wrapper that injects the session token. */
 export async function api<T = unknown>(path: string, opts: FetchOptions = {}): Promise<T> {
-  const session = await auth();
+  const sessionId = getSessionId();
   const headers = new Headers(opts.headers);
   if (!headers.has('content-type') && opts.body !== undefined) {
     headers.set('content-type', 'application/json');
   }
-  if (session?.accessToken) {
-    headers.set('authorization', `Bearer ${session.accessToken}`);
+  if (sessionId) {
+    headers.set('authorization', `Bearer ${sessionId}`);
   }
 
   const res = await fetch(`${BASE}${path}`, {

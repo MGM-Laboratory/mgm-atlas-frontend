@@ -1,8 +1,10 @@
-import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
-import { api } from '@/lib/api/server';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
-import { ApiError } from '@/lib/api/error';
 import { isInsider, type CollaborationRole, type ProjectDetail, type ProjectDetailInsider, type Tag } from '@/lib/types';
 import { Container } from '@/components/layout/container';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,41 +14,63 @@ import { ContributionRequestsList } from '@/components/projects/manage/requests-
 import { TeamPanel } from '@/components/projects/manage/team-panel';
 import { DangerZone } from '@/components/projects/manage/danger-zone';
 
-interface PageProps {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string }>;
-}
+export default function ManageProjectPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const slug = params.slug as string;
 
-export const metadata: Metadata = { title: 'Manage' };
+  const [project, setProject] = useState<ProjectDetailInsider | null>(null);
+  const [grouped, setGrouped] = useState<{ category: string; items: Tag[] }[] | null>(null);
+  const [roles, setRoles] = useState<CollaborationRole[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function ManageProjectPage({ params, searchParams }: PageProps) {
-  const { slug } = await params;
-  const { tab = 'overview' } = await searchParams;
+  const tab = searchParams.get('tab') || 'overview';
 
-  let project: ProjectDetail;
-  try {
-    project = await api<ProjectDetail>(apiPaths.project(slug));
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) notFound();
-    throw err;
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const projectData = await api<ProjectDetail>(apiPaths.project(slug));
+        
+        if (!isInsider(projectData) || !projectData.access.isManager) {
+          router.push(`/projects/${slug}`);
+          return;
+        }
+
+        const [tagsData, rolesData] = await Promise.all([
+          api<{ category: string; items: Tag[] }[]>(apiPaths.tagsGrouped()),
+          api<CollaborationRole[]>(apiPaths.collaborationRoles()),
+        ]);
+
+        setProject(projectData as ProjectDetailInsider);
+        setGrouped(tagsData);
+        setRoles(rolesData);
+      } catch (err) {
+        console.error('Failed to fetch project:', err);
+        router.push(`/projects/${slug}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [slug, router]);
+
+  if (loading || !project || !grouped || !roles) {
+    return (
+      <Container size="2xl" className="space-y-8 py-10">
+        <div className="h-40 animate-pulse rounded bg-line" />
+      </Container>
+    );
   }
 
-  if (!isInsider(project) || !project.access.isManager) {
-    redirect(`/projects/${slug}`);
-  }
-  const insider = project as ProjectDetailInsider;
-
-  const [grouped, roles] = await Promise.all([
-    api<{ category: string; items: Tag[] }[]>(apiPaths.tagsGrouped()),
-    api<CollaborationRole[]>(apiPaths.collaborationRoles()),
-  ]);
-
-  const pending = insider.pendingRequestCount ?? 0;
+  const pending = project.pendingRequestCount ?? 0;
 
   return (
     <Container size="2xl" className="space-y-8 py-10">
       <header>
-        <span className="text-[13px] font-medium text-ink-3">{insider.title}</span>
+        <span className="text-[13px] font-medium text-ink-3">{project.title}</span>
         <h1 className="mt-1 font-display text-display-lg tracking-[-0.02em] text-ink">
           Manage
         </h1>
@@ -64,7 +88,7 @@ export default async function ManageProjectPage({ params, searchParams }: PagePr
         </TabsList>
 
         <TabsContent value="overview">
-          <EditProjectForm project={insider} groupedTags={grouped} collaborationRoles={roles} />
+          <EditProjectForm project={project} groupedTags={grouped} collaborationRoles={roles} />
         </TabsContent>
 
         <TabsContent value="requests">
@@ -72,11 +96,11 @@ export default async function ManageProjectPage({ params, searchParams }: PagePr
         </TabsContent>
 
         <TabsContent value="team">
-          <TeamPanel project={insider} collaborationRoles={roles} />
+          <TeamPanel project={project} collaborationRoles={roles} />
         </TabsContent>
 
         <TabsContent value="settings">
-          <DangerZone project={insider} />
+          <DangerZone project={project} />
         </TabsContent>
       </Tabs>
     </Container>

@@ -20,7 +20,11 @@ interface Props {
   className?: string;
 }
 
-export function ProjectCard({ project, width = 320, static: isStatic = false, className }: Props) {
+export function ProjectCard({ project, width, static: isStatic = false, className }: Props) {
+  // Inside scroll rows we render with a fixed width so cards line up; inside a
+  // CSS grid (browse page) we let the grid cell define the width so they don't
+  // overflow / overlap one another.
+  const resolvedWidth = isStatic ? undefined : width ?? 320;
   const [hovered, setHovered] = React.useState(false);
   const [coords, setCoords] = React.useState<{ left: number; top: number; width: number } | null>(null);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -47,8 +51,12 @@ export function ProjectCard({ project, width = 320, static: isStatic = false, cl
       onMouseLeave={onLeave}
       onFocus={onEnter}
       onBlur={onLeave}
-      className={cn('relative shrink-0 snap-start', className)}
-      style={{ width }}
+      className={cn(
+        'relative snap-start',
+        isStatic ? 'w-full' : 'shrink-0',
+        className,
+      )}
+      style={resolvedWidth ? { width: resolvedWidth } : undefined}
     >
       {/* Base card — always visible */}
       <Link

@@ -1,6 +1,9 @@
-import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { api } from '@/lib/api/server';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import type { SessionUser } from '@/lib/types';
 import { Container } from '@/components/layout/container';
@@ -10,16 +13,43 @@ import { UserManager } from '@/components/admin/user-manager';
 import { CollaborationRoleManager } from '@/components/admin/role-manager';
 import { FeaturedManager } from '@/components/admin/featured-manager';
 
-export const metadata: Metadata = { title: 'Admin' };
+export default function AdminPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [me, setMe] = useState<SessionUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-interface PageProps {
-  searchParams: Promise<{ tab?: string }>;
-}
+  const tab = searchParams.get('tab') || 'tags';
 
-export default async function AdminPage({ searchParams }: PageProps) {
-  const me = await api<SessionUser>(apiPaths.session()).catch(() => null);
-  if (!me?.isAdmin) redirect('/dashboard');
-  const { tab = 'tags' } = await searchParams;
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const userData = await api<SessionUser>(apiPaths.session()).catch(() => null);
+        if (!userData?.isAdmin) {
+          router.push('/dashboard');
+          return;
+        }
+        setMe(userData);
+      } catch (err) {
+        console.error('Failed to fetch user:', err);
+        router.push('/dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAdmin();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <Container size="2xl" className="space-y-8 py-10">
+        <div className="h-40 animate-pulse rounded bg-line" />
+      </Container>
+    );
+  }
+
+  if (!me?.isAdmin) return null;
 
   return (
     <Container size="2xl" className="space-y-8 py-10">
