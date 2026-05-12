@@ -85,9 +85,14 @@ export async function GET(request: NextRequest) {
       const errorText = await sessionResponse.text();
       console.error('Session creation failed:', {
         status: sessionResponse.status,
+        url: `${backendUrl}/auth/session`,
         error: errorText,
       });
-      return NextResponse.redirect(createRedirectUrl('/login', 'session_creation_failed'));
+      const url = createRedirectUrl('/login', 'session_creation_failed');
+      url.searchParams.set('error_status', String(sessionResponse.status));
+      // Trim long HTML bodies (Nest sometimes returns the default error page).
+      url.searchParams.set('error_detail', errorText.slice(0, 240));
+      return NextResponse.redirect(url);
     }
 
     const user = (await sessionResponse.json()) as {
