@@ -26,33 +26,38 @@ export const DialogContent = React.forwardRef<
           'data-[state=open]:animate-fade-in',
         )}
       />
-      <RadixDialog.Content
-        ref={ref}
-        className={cn(
-          'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2',
-          sizes[size],
-          // Keep tall forms reachable: cap to viewport and scroll inside the
-          // dialog instead of letting the top edge clip off-screen.
-          'max-h-[calc(100svh-32px)] overflow-y-auto overscroll-contain',
-          'rounded-xl bg-white shadow-3 outline-none',
-          'p-7',
-          'data-[state=open]:animate-modal-in',
-          className,
-        )}
-        {...rest}
-      >
-        {children}
-        <RadixDialog.Close
-          className={cn(
-            'absolute right-3 top-3 inline-grid h-8 w-8 place-items-center rounded text-ink-3',
-            'hover:bg-surface-muted hover:text-ink',
-            'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-          )}
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </RadixDialog.Close>
-      </RadixDialog.Content>
+      {/* Viewport-sized scrollable wrapper. Flex centering keeps the dialog
+          centered when its content fits, and lets the wrapper itself scroll
+          when content is taller than the viewport — works at any browser
+          zoom because it uses only percentages, no vh/svh/dvh calc. */}
+      <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <RadixDialog.Content
+            ref={ref}
+            className={cn(
+              'relative w-full',
+              sizes[size],
+              'rounded-xl bg-white shadow-3 outline-none',
+              'p-7',
+              'data-[state=open]:animate-modal-in',
+              className,
+            )}
+            {...rest}
+          >
+            {children}
+            <RadixDialog.Close
+              className={cn(
+                'absolute right-3 top-3 inline-grid h-8 w-8 place-items-center rounded text-ink-3',
+                'hover:bg-surface-muted hover:text-ink',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
+              )}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </RadixDialog.Close>
+          </RadixDialog.Content>
+        </div>
+      </div>
     </RadixDialog.Portal>
   );
 });
