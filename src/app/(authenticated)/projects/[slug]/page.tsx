@@ -65,6 +65,12 @@ export default function ProjectDetailPage() {
   }
 
   const insider = isInsider(project) ? (project as ProjectDetailInsider) : null;
+  const canContribute =
+    !!me &&
+    project.access.level !== 'admin' &&
+    project.access.level !== 'manager' &&
+    project.access.level !== 'contributor' &&
+    !project.archivedAt;
 
   return (
     <>
@@ -97,7 +103,7 @@ export default function ProjectDetailPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
-              {project.collaborationRoles.length > 0 && project.access.level !== 'admin' && project.access.level !== 'manager' && project.access.level !== 'contributor' ? (
+              {canContribute ? (
                 <Button asChild size="lg">
                   <Link href={`/projects/${project.slug}?contribute=1`}>
                     Contribute to this project
@@ -112,7 +118,7 @@ export default function ProjectDetailPage() {
                   </Link>
                 </Button>
               ) : null}
-              <BookmarkButton projectId={project.id} />
+              <BookmarkButton projectId={project.id} bookmarked={project.bookmarked ?? false} />
             </div>
           </div>
 
@@ -228,7 +234,7 @@ export default function ProjectDetailPage() {
         </div>
       </Container>
 
-      {project.collaborationRoles.length > 0 && me && project.access.level !== 'admin' && project.access.level !== 'manager' && project.access.level !== 'contributor' ? (
+      {canContribute && me ? (
         <ContributeModal
           projectSlug={project.slug}
           projectTitle={project.title}

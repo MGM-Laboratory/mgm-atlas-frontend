@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractUserFromIdToken } from '@/lib/auth-client';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -66,40 +65,19 @@ export async function GET(request: NextRequest) {
       expires_in?: number;
     };
 
-    // Extract user info from ID token
-    const userInfo = tokenData.id_token
-      ? extractUserFromIdToken(tokenData.id_token)
-      : null;
-
-    if (!userInfo) {
-      return NextResponse.redirect(createRedirectUrl('/login', 'invalid_id_token'));
-    }
-
-    // Call backend to create a session
     const backendUrl = process.env.NEXT_PUBLIC_API_URL;
-    
+
     if (!backendUrl) {
       console.error('Missing NEXT_PUBLIC_API_URL environment variable');
       return NextResponse.redirect(createRedirectUrl('/login', 'missing_api_url'));
     }
 
-    console.log('Calling backend session creation:', {
-      url: `${backendUrl}/auth/login`,
-      userInfo,
-    });
-
-    const sessionResponse = await fetch(`${backendUrl}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        keycloakId: userInfo.keycloakId,
-        email: userInfo.email,
-        name: userInfo.name,
-        picture: userInfo.picture,
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        idToken: tokenData.id_token,
-      }),
+    // Backend is stateless: it validates the Keycloak access token via JWKS and
+    // returns the synced Atlas user. We use the access token itself as the
+    // Bearer credential for all subsequent API calls.
+    const sessionResponse = await fetch(`${backendUrl}/auth/session`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
       cache: 'no-store',
     });
 
@@ -107,22 +85,31 @@ export async function GET(request: NextRequest) {
       const errorText = await sessionResponse.text();
       console.error('Session creation failed:', {
         status: sessionResponse.status,
+        url: `${backendUrl}/auth/session`,
         error: errorText,
       });
-      return NextResponse.redirect(createRedirectUrl('/login', 'session_creation_failed'));
+      const url = createRedirectUrl('/login', 'session_creation_failed');
+      url.searchParams.set('error_status', String(sessionResponse.status));
+      // Trim long HTML bodies (Nest sometimes returns the default error page).
+      url.searchParams.set('error_detail', errorText.slice(0, 240));
+      return NextResponse.redirect(url);
     }
 
-    const sessionData = (await sessionResponse.json()) as {
-      sessionId: string;
-      expiresAt: string;
-      user: {
-        id: string;
-        keycloakId: string;
-        email: string;
-        name: string;
-        avatarUrl: string | null;
-        isAdmin: boolean;
-      };
+    const user = (await sessionResponse.json()) as {
+      id: string;
+      keycloakId: string;
+      email: string;
+      name: string;
+      avatarUrl: string | null;
+      isAdmin: boolean;
+    };
+
+    const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 300) * 1000);
+
+    const sessionData = {
+      sessionId: tokenData.access_token,
+      expiresAt: expiresAt.toISOString(),
+      user,
     };
 
     // Redirect to root page with session data

@@ -116,6 +116,7 @@ export interface ProjectDetailViewer {
   managers: UserSummary[];
   memberCount: number;
   access: { level: 'admin' | 'manager' | 'contributor' | 'viewer'; isInsider: boolean; isManager: boolean };
+  bookmarked?: boolean;
 }
 
 export interface ProjectDetailInsider extends ProjectDetailViewer {

@@ -6,8 +6,25 @@ import { ShapeSignature } from '@/components/brand/shape-signature';
 import { LoginClient } from '@/components/auth/login-client';
 
 interface PageProps {
-  searchParams: Promise<{ callbackUrl?: string; reason?: string; error?: string }>;
+  searchParams: Promise<{
+    callbackUrl?: string;
+    reason?: string;
+    error?: string;
+    error_status?: string;
+    error_detail?: string;
+  }>;
 }
+
+const ERROR_HINTS: Record<string, string> = {
+  session_creation_failed:
+    'The Atlas API rejected your Keycloak token. Most often this means the access token is missing the "email" claim — open the Keycloak admin and enable the email mapper for the access token (or for userinfo) on the atlas-web client. Check the API logs for the full reason.',
+  token_exchange_failed:
+    'Keycloak refused to exchange the authorization code. Check that the client secret is correct and that the redirect URI matches exactly.',
+  missing_parameters:
+    'The redirect from Keycloak was missing required parameters. Re-initiate the sign-in.',
+  missing_api_url: 'NEXT_PUBLIC_API_URL is not configured for the frontend.',
+  internal_error: 'An unexpected error occurred. Check the frontend server logs.',
+};
 
 export default async function LoginPage({ searchParams }: PageProps) {
   const session = getStoredSession();
@@ -44,8 +61,19 @@ export default async function LoginPage({ searchParams }: PageProps) {
           ) : null}
 
           {params.error ? (
-            <div className="mt-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-600">
-              Authentication failed: {params.error}. Please try again.
+            <div className="mt-5 rounded border border-brand-red/30 bg-brand-red-50 px-4 py-3 text-[13px] text-ink">
+              <div className="font-medium text-brand-red">
+                Authentication failed: {params.error}
+                {params.error_status ? ` (${params.error_status})` : null}
+              </div>
+              {ERROR_HINTS[params.error] ? (
+                <p className="mt-1 text-ink-2">{ERROR_HINTS[params.error]}</p>
+              ) : null}
+              {params.error_detail ? (
+                <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-white/60 p-2 font-mono text-[11px] text-ink-3">
+                  {params.error_detail}
+                </pre>
+              ) : null}
             </div>
           ) : null}
 

@@ -31,6 +31,9 @@ export const DialogContent = React.forwardRef<
         className={cn(
           'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2',
           sizes[size],
+          // Keep tall forms reachable: cap to viewport and scroll inside the
+          // dialog instead of letting the top edge clip off-screen.
+          'max-h-[calc(100svh-32px)] overflow-y-auto overscroll-contain',
           'rounded-xl bg-white shadow-3 outline-none',
           'p-7',
           'data-[state=open]:animate-modal-in',
