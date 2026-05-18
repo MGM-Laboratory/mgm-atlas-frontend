@@ -17,12 +17,15 @@ interface PageProps {
 
 const ERROR_HINTS: Record<string, string> = {
   session_creation_failed:
-    'The Atlas API rejected your Keycloak token. Most often this means the access token is missing the "email" claim — open the Keycloak admin and enable the email mapper for the access token (or for userinfo) on the atlas-web client. Check the API logs for the full reason.',
+    'The Atlas API rejected the /auth/login request — usually a database problem (missing Session table, broken migration) or the API process is down. Check the API logs.',
+  missing_identity_claims:
+    'The Keycloak ID token had no sub or email claim. In the Keycloak admin, open the atlas-web client (or the email/profile client scopes) and confirm the email and profile mappers are enabled and added to the ID token.',
   token_exchange_failed:
     'Keycloak refused to exchange the authorization code. Check that the client secret is correct and that the redirect URI matches exactly.',
   missing_parameters:
     'The redirect from Keycloak was missing required parameters. Re-initiate the sign-in.',
   missing_api_url: 'NEXT_PUBLIC_API_URL is not configured for the frontend.',
+  invalid_session_data: 'The session blob returned by the callback could not be parsed. Sign in again.',
   internal_error: 'An unexpected error occurred. Check the frontend server logs.',
 };
 
