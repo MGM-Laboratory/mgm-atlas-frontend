@@ -46,6 +46,7 @@ export default function ProjectChannelPage() {
   return (
     <ChatLayout
       projectSlug={slug}
+      projectId={project.id}
       projectTitle={project.title}
       channelId={channelId}
       currentUserId={session.user.id}

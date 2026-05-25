@@ -2,18 +2,21 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Hash, ArrowLeft } from 'lucide-react';
+import { Hash, ArrowLeft, Radio } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { useChannelSocket } from '@/lib/realtime/use-channel-socket';
 import type { ChatChannel, ChatMessage } from '@/lib/types';
 import { ChannelList } from './channel-list';
 import { MessageList } from './message-list';
 import { MessageComposer } from './message-composer';
+import { TypingIndicator } from './typing-indicator';
 
 interface Props {
   projectSlug: string;
+  projectId: string;
   projectTitle: string;
   channelId: string;
   currentUserId: string;
@@ -22,6 +25,7 @@ interface Props {
 
 export function ChatLayout({
   projectSlug,
+  projectId,
   projectTitle,
   channelId,
   currentUserId,
@@ -37,6 +41,15 @@ export function ChatLayout({
   });
 
   const channel = channelsQuery.data?.find((c) => c.id === channelId);
+
+  // Open the live socket for this channel — pushes message / reaction /
+  // typing events into the React Query cache and Zustand store so the
+  // child components don't need any socket knowledge.
+  const { isConnected, sendTypingPing, sendTypingStop } = useChannelSocket({
+    projectId,
+    channelId,
+    currentUserId,
+  });
 
   // Clear the reply draft when switching channels.
   React.useEffect(() => setReplyTo(null), [channelId]);
@@ -67,6 +80,16 @@ export function ChatLayout({
               · {channel.topic}
             </span>
           ) : null}
+          <span
+            className="ml-auto inline-flex items-center gap-1 text-[11px] text-ink-3"
+            title={isConnected ? 'Realtime connected' : 'Reconnecting…'}
+          >
+            <Radio
+              className={`h-3 w-3 ${isConnected ? 'text-brand-green' : 'text-ink-4'}`}
+              strokeWidth={2.25}
+            />
+            <span className="hidden md:inline">{isConnected ? 'Live' : 'Offline'}</span>
+          </span>
         </header>
 
         <MessageList
@@ -75,7 +98,12 @@ export function ChatLayout({
           currentUserId={currentUserId}
           isManager={isManager}
           onReply={setReplyTo}
+          live={isConnected}
         />
+
+        <div className="px-6">
+          <TypingIndicator channelId={channelId} />
+        </div>
 
         <MessageComposer
           projectSlug={projectSlug}
@@ -83,6 +111,8 @@ export function ChatLayout({
           channelName={channel?.name ?? 'channel'}
           replyTo={replyTo}
           onClearReply={() => setReplyTo(null)}
+          onTyping={sendTypingPing}
+          onTypingStop={sendTypingStop}
         />
       </section>
     </div>

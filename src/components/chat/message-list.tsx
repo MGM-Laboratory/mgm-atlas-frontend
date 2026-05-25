@@ -13,22 +13,27 @@ interface Props {
   channelId: string;
   currentUserId: string;
   isManager: boolean;
+  /** When true, the socket is pushing updates and we don't need to poll. */
+  live?: boolean;
   onReply: (message: ChatMessage) => void;
 }
 
 /**
- * P1: REST polling every 5s. P2 swaps the polling for socket events
- * pushed into the same query cache, so this component stays unchanged.
+ * Cursor-paginated message list, newest-first. The first page is the
+ * latest 50 messages; getNextPageParam returns the cursor for older
+ * history, fetched on scroll-up.
  *
- * Newest-first cursor pagination: the first page is the latest 50
- * messages; getNextPageParam returns the cursor for older history,
- * which the user fetches by scrolling up.
+ * When `live` is true (socket connected), the realtime layer pushes
+ * updates straight into this query cache via `setQueryData`, so we
+ * disable the polling fallback. When `live` is false (no Redis, lost
+ * connection, etc.) we drop back to 5s polling automatically.
  */
 export function MessageList({
   projectSlug,
   channelId,
   currentUserId,
   isManager,
+  live,
   onReply,
 }: Props) {
   const queryClient = useQueryClient();
@@ -40,7 +45,8 @@ export function MessageList({
       api<ChatMessagePage>(apiPaths.chat.messages(projectSlug, channelId, pageParam, 50)),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    refetchInterval: 5000,
+    refetchInterval: live ? false : 5000,
+    refetchOnReconnect: true,
     refetchOnWindowFocus: false,
   });
 
