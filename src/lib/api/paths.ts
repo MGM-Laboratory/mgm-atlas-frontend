@@ -64,4 +64,35 @@ export const apiPaths = {
   collaborationRole: (id: string) => `/admin/collaboration-roles/${id}`,
 
   health: () => '/health',
+
+  // ─── Chat ──────────────────────────────────────────────────────────
+  chat: {
+    myProjects: () => '/chat/me/projects',
+    channels: (projectSlugOrId: string) => `/projects/${projectSlugOrId}/chat/channels`,
+    channel: (projectSlugOrId: string, channelId: string) =>
+      `/projects/${projectSlugOrId}/chat/channels/${channelId}`,
+    archiveChannel: (projectSlugOrId: string, channelId: string) =>
+      `/projects/${projectSlugOrId}/chat/channels/${channelId}/archive`,
+    unarchiveChannel: (projectSlugOrId: string, channelId: string) =>
+      `/projects/${projectSlugOrId}/chat/channels/${channelId}/unarchive`,
+    messages: (projectSlugOrId: string, channelId: string, cursor?: string, limit?: number) => {
+      const qs = new URLSearchParams();
+      if (cursor) qs.set('cursor', cursor);
+      if (limit) qs.set('limit', String(limit));
+      const q = qs.toString();
+      return `/projects/${projectSlugOrId}/chat/channels/${channelId}/messages${q ? `?${q}` : ''}`;
+    },
+    read: (projectSlugOrId: string, channelId: string) =>
+      `/projects/${projectSlugOrId}/chat/channels/${channelId}/read`,
+    pins: (projectSlugOrId: string, channelId: string) =>
+      `/projects/${projectSlugOrId}/chat/channels/${channelId}/pins`,
+    editMessage: (messageId: string) => `/chat/messages/${messageId}`,
+    deleteMessage: (messageId: string) => `/chat/messages/${messageId}`,
+    addReaction: (messageId: string) => `/chat/messages/${messageId}/reactions`,
+    removeReaction: (messageId: string, emoji: string) =>
+      `/chat/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+    pinMessage: (messageId: string) => `/chat/messages/${messageId}/pin`,
+    unpinMessage: (messageId: string) => `/chat/messages/${messageId}/unpin`,
+    forwardMessage: (messageId: string) => `/chat/messages/${messageId}/forward`,
+  },
 };
