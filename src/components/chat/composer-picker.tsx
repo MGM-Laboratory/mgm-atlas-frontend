@@ -102,13 +102,13 @@ function GifTab({ onPick }: { onPick: (gif: ChatGif) => void }) {
     queryKey: ['chat', 'gifs', 'q', debounced],
     enabled: configQuery.data?.available !== false,
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.next ?? undefined,
     queryFn: ({ pageParam }) =>
       api<ChatGifSearchResult>(
         debounced.trim().length === 0
           ? apiPaths.chat.gifsTrending(pageParam)
           : apiPaths.chat.gifsSearch(debounced.trim(), pageParam),
       ),
+    getNextPageParam: (last: ChatGifSearchResult) => last.next ?? undefined,
   });
 
   if (configQuery.data?.available === false) {
