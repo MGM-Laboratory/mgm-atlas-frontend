@@ -15,6 +15,10 @@ interface Props {
   channelName: string;
   replyTo: ChatMessage | null;
   onClearReply: () => void;
+  /** Called on each keystroke. Throttled to once per 2s server-side. */
+  onTyping?: () => void;
+  /** Called when the user clears the draft or sends. */
+  onTypingStop?: () => void;
 }
 
 /**
@@ -25,7 +29,15 @@ interface Props {
  *
  * Enter sends; Shift+Enter inserts a newline.
  */
-export function MessageComposer({ projectSlug, channelId, channelName, replyTo, onClearReply }: Props) {
+export function MessageComposer({
+  projectSlug,
+  channelId,
+  channelName,
+  replyTo,
+  onClearReply,
+  onTyping,
+  onTypingStop,
+}: Props) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = React.useState('');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -48,6 +60,11 @@ export function MessageComposer({ projectSlug, channelId, channelName, replyTo, 
     onSuccess: () => {
       setDraft('');
       onClearReply();
+      onTypingStop?.();
+      // With sockets live, the server pushes message.created and the
+      // socket layer prepends it to the cache. We still invalidate as
+      // a safety net for environments without Redis where the cache
+      // wouldn't be updated otherwise.
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.messages(channelId) });
     },
   });
@@ -63,6 +80,13 @@ export function MessageComposer({ projectSlug, channelId, channelName, replyTo, 
       e.preventDefault();
       submit();
     }
+  };
+
+  const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = e.target.value;
+    setDraft(next);
+    if (next.trim().length > 0) onTyping?.();
+    else onTypingStop?.();
   };
 
   return (
@@ -89,7 +113,7 @@ export function MessageComposer({ projectSlug, channelId, channelName, replyTo, 
         <textarea
           ref={textareaRef}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={onChange}
           onKeyDown={onKeyDown}
           rows={Math.min(6, Math.max(1, draft.split('\n').length))}
           placeholder={`Message #${channelName}`}
