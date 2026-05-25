@@ -25,7 +25,18 @@ export type NotificationType =
   | 'CONTRIBUTION_REQUEST_REJECTED'
   | 'PROJECT_INVITED'
   | 'PROJECT_ROLE_CHANGED'
-  | 'PROJECT_REMOVED';
+  | 'PROJECT_REMOVED'
+  | 'CHAT_MENTION';
+
+export type ChatMessageKind =
+  | 'TEXT'
+  | 'SYSTEM_CHANNEL_CREATED'
+  | 'SYSTEM_CHANNEL_RENAMED'
+  | 'SYSTEM_PINNED';
+
+export type ChatAttachmentKind = 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE';
+
+export type ChatDeleteActor = 'SELF' | 'MODERATOR';
 
 export interface SessionUser {
   id: string;
@@ -196,6 +207,102 @@ export interface DashboardPayload {
   contributing: Array<Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'phase' | 'visibility' | 'thumbnailUrl' | 'thumbnailType'> & { archivedAt: string | null }>;
   pendingRequests: { id: string; role: string; message: string; createdAt: string; project: Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'thumbnailUrl' | 'thumbnailType'> }[];
   bookmarks: Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'phase' | 'thumbnailUrl' | 'thumbnailType'>[];
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────
+
+export interface ChatChannel {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  topic: string | null;
+  isGeneral: boolean;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+}
+
+export interface ChatAttachment {
+  id: string;
+  messageId: string;
+  kind: ChatAttachmentKind;
+  url: string;
+  s3Key: string;
+  mime: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  durationSec: number | null;
+  posterUrl: string | null;
+  createdAt: string;
+}
+
+export interface ChatReactionGroup {
+  emoji: string;
+  count: number;
+  users: { id: string; name: string }[];
+}
+
+export interface ChatReplyPreview {
+  id: string;
+  preview: string;
+  isDeleted: boolean;
+  author: UserSummary;
+}
+
+export interface ChatForwardOrigin {
+  id: string;
+  channelId: string;
+  author: { id: string; name: string };
+}
+
+export interface ChatMessage {
+  id: string;
+  channelId: string;
+  kind: ChatMessageKind;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  deletedActor: ChatDeleteActor | null;
+  deletedBy: { id: string; name: string } | null;
+  author: UserSummary;
+  markdown: string;
+  attachments: ChatAttachment[];
+  reactions: ChatReactionGroup[];
+  replyTo: ChatReplyPreview | null;
+  forwardedFrom: ChatForwardOrigin | null;
+  /** Echoed back from the request so optimistic UI can reconcile. */
+  clientMessageId?: string;
+}
+
+export interface ChatMessagePage {
+  items: ChatMessage[];
+  nextCursor: string | null;
+}
+
+export interface ChatProjectOverviewChannel {
+  id: string;
+  name: string;
+  slug: string;
+  isGeneral: boolean;
+  unread: number;
+  updatedAt: string;
+}
+
+export interface ChatProjectOverview {
+  id: string;
+  slug: string;
+  title: string;
+  thumbnailUrl: string | null;
+  updatedAt: string;
+  channels: ChatProjectOverviewChannel[];
+  unread: number;
+}
+
+export interface ChatOverviewPayload {
+  projects: ChatProjectOverview[];
 }
 
 export const PROJECT_PHASE_LABEL: Record<ProjectPhase, string> = {

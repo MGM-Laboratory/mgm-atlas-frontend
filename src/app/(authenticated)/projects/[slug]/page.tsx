@@ -10,6 +10,7 @@ import {
   GitBranch,
   Globe,
   KanbanSquare,
+  MessagesSquare,
   Settings2,
   Users,
 } from 'lucide-react';
@@ -115,6 +116,14 @@ export default function ProjectDetailPage() {
                   <Link href={`/projects/${project.slug}/manage`}>
                     <Settings2 className="h-4 w-4" strokeWidth={2.25} />
                     Manage
+                  </Link>
+                </Button>
+              ) : null}
+              {project.access.isInsider ? (
+                <Button asChild variant="secondary" size="lg">
+                  <Link href={`/projects/${project.slug}/chat` as never}>
+                    <MessagesSquare className="h-4 w-4" strokeWidth={2.25} />
+                    Chat
                   </Link>
                 </Button>
               ) : null}

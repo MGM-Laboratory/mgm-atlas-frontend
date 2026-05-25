@@ -35,7 +35,7 @@ Consequences a future Claude must keep in mind:
 
 - **There is no Auth.js / NextAuth.** Don't import from `next-auth` even though it's still in `package.json` — it's dead weight pending removal.
 - **There are no httpOnly cookies.** Session lives in `localStorage`, accessible only to client code.
-- **`src/lib/api/server.ts` is partially broken by design today.** It imports `getStoredSession` from `auth-client.ts`, which checks `typeof window` and returns `null` on the server. Any RSC fetch that needs auth will go out unauthenticated. The branch `fix/missing-contribute` and recent commits ("fix auth session", "fix jwt session") indicate this area is actively being reworked — verify current state before relying on RSC auth.
+- **`src/lib/api/server.ts` is partially broken by design today (verified current).** It calls `getSessionId()` from `auth-client.ts`, which is gated on `typeof window !== 'undefined'` and therefore returns `null` whenever it runs on the server. Any RSC fetch through `api()` / `apiGet()` will go out unauthenticated and the backend will 401. Until a server-side session source exists (cookie, header forwarded from the client, etc.), RSC reads that need a user's session won't work.
 - **Prefer client fetching (`@/lib/api/client` + TanStack Query)** for any data that needs the user's session until the server-side path is settled.
 
 ### Data layer
