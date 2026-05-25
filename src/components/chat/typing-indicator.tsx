@@ -8,11 +8,18 @@ import { usePresenceStore } from '@/lib/realtime/presence-store';
  * the Zustand presence store the socket layer writes into. Renders
  * nothing when no one is typing — fixed-height container in the
  * caller keeps layout from jumping.
+ *
+ * IMPORTANT: the selector must NOT return a fresh value (e.g.
+ * `?? []`) when nothing has changed. `useSyncExternalStore` compares
+ * snapshots with Object.is and throws "The result of getSnapshot
+ * should be cached to avoid an infinite loop" when given a new
+ * reference each call. We select the raw value (which IS stable
+ * across renders) and treat undefined as "no one typing".
  */
 export function TypingIndicator({ channelId }: { channelId: string }) {
-  const typing = usePresenceStore((s) => s.typing[channelId] ?? []);
+  const typing = usePresenceStore((s) => s.typing[channelId]);
 
-  if (typing.length === 0) {
+  if (!typing || typing.length === 0) {
     return <div className="h-4" />;
   }
 
