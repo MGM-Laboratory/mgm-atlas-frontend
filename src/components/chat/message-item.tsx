@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/lib/types';
 import { AttachmentRenderer } from './attachment-renderer';
+import { MarkdownBody } from './markdown-body';
 
 const QUICK_REACTIONS = ['👍', '❤️', '🎉', '🚀', '😂', '👀'];
 
@@ -140,9 +141,7 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
               </div>
             </div>
           ) : (
-            <div className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink">
-              {message.markdown}
-            </div>
+            <MarkdownBody markdown={message.markdown} />
           )}
 
           {!isDeleted && message.attachments.length > 0 ? (

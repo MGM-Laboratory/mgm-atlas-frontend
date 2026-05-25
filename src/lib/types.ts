@@ -305,6 +305,42 @@ export interface ChatOverviewPayload {
   projects: ChatProjectOverview[];
 }
 
+export interface ChatLinkPreview {
+  url: string;
+  kind: 'link' | 'video' | 'gif';
+  title?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  siteName?: string | null;
+  embedHtml?: string | null;
+  cached?: boolean;
+}
+
+export interface ChatGif {
+  id: string;
+  title: string;
+  previewUrl: string;
+  gifUrl: string;
+  mp4Url: string | null;
+  width: number;
+  height: number;
+}
+
+export interface ChatGifSearchResult {
+  provider: 'tenor';
+  results: ChatGif[];
+  next: string | null;
+}
+
+export interface ChatAttachmentPresign {
+  uploadUrl: string;
+  expiresIn: number;
+  s3Key: string;
+  publicUrl: string;
+  kind: ChatAttachmentKind;
+  contentType: string;
+}
+
 export const PROJECT_PHASE_LABEL: Record<ProjectPhase, string> = {
   IDEA: 'Idea',
   PLANNING: 'Planning',
