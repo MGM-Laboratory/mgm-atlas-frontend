@@ -94,5 +94,15 @@ export const apiPaths = {
     pinMessage: (messageId: string) => `/chat/messages/${messageId}/pin`,
     unpinMessage: (messageId: string) => `/chat/messages/${messageId}/unpin`,
     forwardMessage: (messageId: string) => `/chat/messages/${messageId}/forward`,
+    presignAttachment: (projectSlugOrId: string, channelId: string) =>
+      `/projects/${projectSlugOrId}/chat/channels/${channelId}/attachments/presign`,
+    linkPreview: () => '/chat/link-preview',
+    gifsConfig: () => '/chat/gifs/config',
+    gifsSearch: (q: string, pos?: string) => {
+      const qs = new URLSearchParams({ q });
+      if (pos) qs.set('pos', pos);
+      return `/chat/gifs/search?${qs.toString()}`;
+    },
+    gifsTrending: (pos?: string) => `/chat/gifs/trending${pos ? `?pos=${encodeURIComponent(pos)}` : ''}`,
   },
 };
