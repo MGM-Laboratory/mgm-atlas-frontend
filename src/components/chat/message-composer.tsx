@@ -14,6 +14,7 @@ import type {
   ChatGif,
   ChatLinkPreview,
   ChatMessage,
+  Sticker,
 } from '@/lib/types';
 import { AttachmentRenderer } from './attachment-renderer';
 import { ComposerPicker } from './composer-picker';
@@ -275,6 +276,28 @@ export function MessageComposer({
     insertAtCaret((draft ? '\n' : '') + gif.gifUrl + '\n');
   };
 
+  /**
+   * Sticker → attach as a fully-resolved IMAGE attachment (no upload
+   * needed; the bytes already live in S3 under the admin's pack key).
+   * Reusing the attachment surface means the renderer side gets it
+   * for free and the recipient just sees an inline image.
+   */
+  const onStickerPick = (sticker: Sticker) => {
+    setAttachments((prev) => [
+      ...prev,
+      {
+        id: `sticker-${sticker.id}-${Date.now()}`,
+        filename: sticker.name,
+        kind: 'IMAGE',
+        url: sticker.url,
+        s3Key: `__sticker:${sticker.id}`,
+        mime: sticker.mime,
+        bytes: 0,
+        progress: 100,
+      },
+    ]);
+  };
+
   return (
     <div
       className={cn(
@@ -356,6 +379,7 @@ export function MessageComposer({
         <ComposerPicker
           onEmojiPick={(emoji) => insertAtCaret(emoji)}
           onGifPick={onGifPick}
+          onStickerPick={onStickerPick}
         />
         <textarea
           ref={textareaRef}

@@ -8,7 +8,7 @@ import { apiPaths } from '@/lib/api/paths';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { ChatGif, ChatGifSearchResult } from '@/lib/types';
+import type { ChatGif, ChatGifSearchResult, Sticker, StickerPack } from '@/lib/types';
 
 // Lazy-load the emoji picker — it's ~600KB and only needed when the
 // popover opens. Loading on the main bundle would punish every chat
@@ -20,6 +20,8 @@ interface Props {
   onEmojiPick: (emoji: string) => void;
   /** Called with the GIF URL to insert into the message body. */
   onGifPick: (gif: ChatGif) => void;
+  /** Called when the user picks a sticker — attaches it as an inline image. */
+  onStickerPick: (sticker: Sticker) => void;
 }
 
 /**
@@ -29,7 +31,7 @@ interface Props {
  * the GIF tab is disabled (TENOR_API_KEY unset on the server), the
  * tab still renders but says so plainly.
  */
-export function ComposerPicker({ onEmojiPick, onGifPick }: Props) {
+export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick }: Props) {
   const [open, setOpen] = React.useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -72,14 +74,13 @@ export function ComposerPicker({ onEmojiPick, onGifPick }: Props) {
               }}
             />
           </TabsContent>
-          <TabsContent value="sticker" className="p-4">
-            <div className="grid h-[320px] place-items-center text-center text-[13px] text-ink-3">
-              <div className="space-y-1">
-                <ImageIcon className="mx-auto h-6 w-6 text-ink-4" strokeWidth={2.25} />
-                <div>No stickers yet.</div>
-                <div className="text-[11px]">Admins can upload packs from the admin panel.</div>
-              </div>
-            </div>
+          <TabsContent value="sticker" className="p-2">
+            <StickerTab
+              onPick={(s) => {
+                onStickerPick(s);
+                setOpen(false);
+              }}
+            />
           </TabsContent>
         </Tabs>
       </PopoverContent>
@@ -157,6 +158,71 @@ function GifTab({ onPick }: { onPick: (gif: ChatGif) => void }) {
           More
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+function StickerTab({ onPick }: { onPick: (sticker: Sticker) => void }) {
+  const packsQuery = useQuery({
+    queryKey: ['chat', 'stickers', 'packs'],
+    queryFn: () => api<StickerPack[]>(apiPaths.chat.stickerPacks()),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const packs = packsQuery.data ?? [];
+  const totalStickers = packs.reduce((s, p) => s + p.stickers.length, 0);
+
+  if (packsQuery.isLoading) {
+    return (
+      <div className="grid h-[320px] place-items-center text-ink-3">
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </div>
+    );
+  }
+
+  if (totalStickers === 0) {
+    return (
+      <div className="grid h-[320px] place-items-center px-4 text-center text-[13px] text-ink-3">
+        <div className="space-y-1">
+          <ImageIcon className="mx-auto h-6 w-6 text-ink-4" strokeWidth={2.25} />
+          <div>No stickers yet.</div>
+          <div className="text-[11px]">Admins can upload packs from the admin panel.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-[360px] space-y-3 overflow-y-auto pr-1">
+      {packs
+        .filter((p) => p.stickers.length > 0)
+        .map((pack) => (
+          <div key={pack.id}>
+            <div className="mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3">
+              {pack.name}
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {pack.stickers.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onPick(s)}
+                  title={s.name}
+                  className="aspect-square overflow-hidden rounded border border-line hover:border-brand-blue/50"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={s.url}
+                    alt={s.name}
+                    loading="lazy"
+                    className="block h-full w-full object-contain"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
     </div>
   );
 }

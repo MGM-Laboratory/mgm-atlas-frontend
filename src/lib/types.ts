@@ -346,6 +346,39 @@ export interface ChatAttachmentPresign {
   contentType: string;
 }
 
+export interface Sticker {
+  id: string;
+  name: string;
+  keywords: string[];
+  url: string;
+  mime: string;
+  width: number | null;
+  height: number | null;
+}
+
+export interface StickerPack {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  stickers: Sticker[];
+}
+
+export interface AdminStickerPack extends StickerPack {
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { stickers: number };
+}
+
+export interface StickerPresignResponse {
+  uploadUrl: string;
+  expiresIn: number;
+  s3Key: string;
+  publicUrl: string;
+  contentType: string;
+}
+
 export const PROJECT_PHASE_LABEL: Record<ProjectPhase, string> = {
   IDEA: 'Idea',
   PLANNING: 'Planning',

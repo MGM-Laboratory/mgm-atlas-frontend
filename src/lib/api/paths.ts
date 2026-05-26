@@ -104,5 +104,15 @@ export const apiPaths = {
       return `/chat/gifs/search?${qs.toString()}`;
     },
     gifsTrending: (pos?: string) => `/chat/gifs/trending${pos ? `?pos=${encodeURIComponent(pos)}` : ''}`,
+    stickerPacks: () => '/chat/stickers/packs',
+  },
+  adminStickers: {
+    packs: () => '/admin/stickers/packs',
+    pack: (packId: string) => `/admin/stickers/packs/${packId}`,
+    archivePack: (packId: string) => `/admin/stickers/packs/${packId}/archive`,
+    unarchivePack: (packId: string) => `/admin/stickers/packs/${packId}/unarchive`,
+    presignSticker: (packId: string) => `/admin/stickers/packs/${packId}/stickers/presign`,
+    registerSticker: (packId: string) => `/admin/stickers/packs/${packId}/stickers`,
+    sticker: (stickerId: string) => `/admin/stickers/stickers/${stickerId}`,
   },
 };

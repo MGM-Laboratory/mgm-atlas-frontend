@@ -12,6 +12,7 @@ import { TagManager } from '@/components/admin/tag-manager';
 import { UserManager } from '@/components/admin/user-manager';
 import { CollaborationRoleManager } from '@/components/admin/role-manager';
 import { FeaturedManager } from '@/components/admin/featured-manager';
+import { StickerManager } from '@/components/admin/sticker-manager';
 
 export default function AdminPage() {
   const searchParams = useSearchParams();
@@ -71,6 +72,7 @@ export default function AdminPage() {
           <TabsTrigger value="featured">Featured</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="stickers">Stickers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tags">
@@ -84,6 +86,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="users">
           <UserManager />
+        </TabsContent>
+        <TabsContent value="stickers">
+          <StickerManager />
         </TabsContent>
       </Tabs>
     </Container>
