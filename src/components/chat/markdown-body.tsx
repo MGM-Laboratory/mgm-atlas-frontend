@@ -39,8 +39,23 @@ interface Segment {
   value: string;
 }
 
+/**
+ * Mentions are serialised as `@[Name](userId)` by the composer (the
+ * server's notification parser keys on this exact shape). For the
+ * renderer we transform to `**@Name**` so they render as a styled
+ * bold token — userId metadata only matters on the server.
+ */
+const MENTION_REGEX = /@\[([^\]]+)\]\([0-9a-f-]{8,}\)/g;
+
+function transformMentions(input: string): string {
+  return input.replace(MENTION_REGEX, '**@$1**');
+}
+
 export function MarkdownBody({ markdown }: Props) {
-  const segments = React.useMemo(() => splitEmbeds(markdown), [markdown]);
+  const segments = React.useMemo(
+    () => splitEmbeds(transformMentions(markdown)),
+    [markdown],
+  );
   return (
     <div className="chat-md whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink">
       {segments.map((seg, i) =>
