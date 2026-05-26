@@ -104,6 +104,8 @@ export const apiPaths = {
       return `/chat/gifs/search?${qs.toString()}`;
     },
     gifsTrending: (pos?: string) => `/chat/gifs/trending${pos ? `?pos=${encodeURIComponent(pos)}` : ''}`,
+    members: (projectSlugOrId: string, q?: string) =>
+      `/projects/${projectSlugOrId}/chat/members${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     stickerPacks: () => '/chat/stickers/packs',
   },
   adminStickers: {
