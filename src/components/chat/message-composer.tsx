@@ -101,6 +101,22 @@ export function MessageComposer({
               mime: a.mime,
               bytes: a.bytes,
             })),
+          // Send the resolved preview alongside the message so the
+          // recipient renders the same card the sender saw. The URL
+          // stays in the markdown body — the renderer dedupes.
+          linkPreviews: preview
+            ? [
+                {
+                  url: preview.url,
+                  kind: preview.kind,
+                  title: preview.title ?? undefined,
+                  description: preview.description ?? undefined,
+                  imageUrl: preview.imageUrl ?? undefined,
+                  siteName: preview.siteName ?? undefined,
+                  embedHtml: preview.embedHtml ?? undefined,
+                },
+              ]
+            : undefined,
           clientMessageId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         },
       }),

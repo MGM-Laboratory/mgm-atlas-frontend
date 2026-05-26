@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/lib/types';
 import { AttachmentRenderer } from './attachment-renderer';
+import { LinkPreviewCard } from './link-preview-card';
 import { MarkdownBody } from './markdown-body';
 
 const QUICK_REACTIONS = ['👍', '❤️', '🎉', '🚀', '😂', '👀'];
@@ -143,6 +144,14 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
           ) : (
             <MarkdownBody markdown={message.markdown} />
           )}
+
+          {!isDeleted && message.metadata?.linkPreviews?.length ? (
+            <div className="mt-2 max-w-[480px] space-y-1.5">
+              {message.metadata.linkPreviews.map((p) => (
+                <LinkPreviewCard key={p.url} preview={p} />
+              ))}
+            </div>
+          ) : null}
 
           {!isDeleted && message.attachments.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-2">
