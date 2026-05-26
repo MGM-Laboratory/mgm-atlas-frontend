@@ -341,6 +341,14 @@ export interface ChatAttachmentPresign {
   contentType: string;
 }
 
+export interface ChatMember {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  role: ProjectRole;
+  title: string | null;
+}
+
 export const PROJECT_PHASE_LABEL: Record<ProjectPhase, string> = {
   IDEA: 'Idea',
   PLANNING: 'Planning',

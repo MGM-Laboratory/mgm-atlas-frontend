@@ -18,6 +18,7 @@ import type {
 import { AttachmentRenderer } from './attachment-renderer';
 import { ComposerPicker } from './composer-picker';
 import { LinkPreviewCard } from './link-preview-card';
+import { MentionSuggest, type MentionSuggestHandle } from './mention-suggest';
 
 interface Props {
   projectSlug: string;
@@ -70,6 +71,7 @@ export function MessageComposer({
 }: Props) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = React.useState('');
+  const [caret, setCaret] = React.useState(0);
   const [attachments, setAttachments] = React.useState<PendingAttachment[]>([]);
   const [preview, setPreview] = React.useState<ChatLinkPreview | null>(null);
   const [previewLoading, setPreviewLoading] = React.useState(false);
@@ -77,6 +79,26 @@ export function MessageComposer({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const seenPreviewUrlsRef = React.useRef<Set<string>>(new Set());
+  const mentionRef = React.useRef<MentionSuggestHandle>(null);
+
+  const trackCaret = React.useCallback(() => {
+    if (textareaRef.current) setCaret(textareaRef.current.selectionStart ?? 0);
+  }, []);
+
+  const replaceRange = React.useCallback(
+    (start: number, end: number, replacement: string) => {
+      setDraft((d) => d.slice(0, start) + replacement + d.slice(end));
+      const next = start + replacement.length;
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.selectionStart = el.selectionEnd = next;
+        setCaret(next);
+      });
+    },
+    [],
+  );
 
   React.useEffect(() => {
     if (replyTo) textareaRef.current?.focus();
@@ -121,6 +143,8 @@ export function MessageComposer({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Let the mention popover handle navigation / commit when it's open.
+    if (mentionRef.current?.onKeyDown(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -130,6 +154,7 @@ export function MessageComposer({
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const next = e.target.value;
     setDraft(next);
+    setCaret(e.target.selectionStart ?? next.length);
     if (next.trim().length > 0) onTyping?.();
     else onTypingStop?.();
   };
@@ -341,16 +366,28 @@ export function MessageComposer({
           onEmojiPick={(emoji) => insertAtCaret(emoji)}
           onGifPick={onGifPick}
         />
-        <textarea
-          ref={textareaRef}
-          value={draft}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-          rows={Math.min(6, Math.max(1, draft.split('\n').length))}
-          placeholder={`Message #${channelName}`}
-          className="block flex-1 resize-none bg-transparent px-2 py-1.5 text-[14px] outline-none placeholder:text-ink-3"
-        />
+        <div className="relative flex-1">
+          <MentionSuggest
+            ref={mentionRef}
+            value={draft}
+            caret={caret}
+            projectSlug={projectSlug}
+            onSelect={replaceRange}
+          />
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            onKeyUp={trackCaret}
+            onClick={trackCaret}
+            onSelect={trackCaret}
+            onPaste={onPaste}
+            rows={Math.min(6, Math.max(1, draft.split('\n').length))}
+            placeholder={`Message #${channelName}`}
+            className="block w-full resize-none bg-transparent px-2 py-1.5 text-[14px] outline-none placeholder:text-ink-3"
+          />
+        </div>
         <Button
           size="icon-sm"
           onClick={submit}
