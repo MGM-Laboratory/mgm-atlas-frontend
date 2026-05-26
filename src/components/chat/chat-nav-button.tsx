@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Hash, MessagesSquare } from 'lucide-react';
+import { Hash, MessagesSquare, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
@@ -10,6 +10,7 @@ import { queryKeys } from '@/lib/api/queries';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { ChatOverviewPayload } from '@/lib/types';
+import { GlobalChatSearch } from './global-chat-search';
 
 /**
  * Header shortcut. Shows a chat icon with a small unread badge; clicking
@@ -21,6 +22,7 @@ import type { ChatOverviewPayload } from '@/lib/types';
  */
 export function ChatNavButton() {
   const [open, setOpen] = React.useState(false);
+  const [searchOpen, setSearchOpen] = React.useState(false);
 
   const overview = useQuery({
     queryKey: queryKeys.chat.myProjects,
@@ -30,6 +32,18 @@ export function ChatNavButton() {
     // Don't error-noisy in dev when the backend is offline.
     retry: false,
   });
+
+  // ⌘K / Ctrl+K opens global chat search from anywhere in the app.
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const projects = overview.data?.projects ?? [];
   const totalUnread = projects.reduce((sum, p) => sum + p.unread, 0);
@@ -54,13 +68,27 @@ export function ChatNavButton() {
       <PopoverContent align="end" className="w-[320px] p-0">
         <div className="flex items-center justify-between border-b border-line px-3 py-2">
           <div className="text-[13px] font-medium text-ink">Chat</div>
-          <Link
-            href={'/chat' as never}
-            onClick={() => setOpen(false)}
-            className="text-[12px] text-ink-3 hover:text-brand-blue"
-          >
-            View all →
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setSearchOpen(true);
+              }}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-3 hover:bg-surface-muted hover:text-ink"
+            >
+              <Search className="h-3 w-3" strokeWidth={2.25} />
+              Search
+              <kbd className="ml-1 rounded border border-line bg-white px-1 text-[9px]">⌘K</kbd>
+            </button>
+            <Link
+              href={'/chat' as never}
+              onClick={() => setOpen(false)}
+              className="text-[12px] text-ink-3 hover:text-brand-blue"
+            >
+              View all →
+            </Link>
+          </div>
         </div>
         {projects.length === 0 ? (
           <div className="px-3 py-6 text-center text-[13px] text-ink-3">
@@ -107,6 +135,7 @@ export function ChatNavButton() {
           </ul>
         )}
       </PopoverContent>
+      <GlobalChatSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </Popover>
   );
 }

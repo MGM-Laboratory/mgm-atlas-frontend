@@ -107,6 +107,21 @@ export const apiPaths = {
     members: (projectSlugOrId: string, q?: string) =>
       `/projects/${projectSlugOrId}/chat/members${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     stickerPacks: () => '/chat/stickers/packs',
+    search: (params: {
+      scope: 'channel' | 'project' | 'global';
+      q: string;
+      channelId?: string;
+      projectId?: string;
+      cursor?: string;
+      limit?: number;
+    }) => {
+      const qs = new URLSearchParams({ scope: params.scope, q: params.q });
+      if (params.channelId) qs.set('channelId', params.channelId);
+      if (params.projectId) qs.set('projectId', params.projectId);
+      if (params.cursor) qs.set('cursor', params.cursor);
+      if (params.limit) qs.set('limit', String(params.limit));
+      return `/chat/search?${qs.toString()}`;
+    },
   },
   adminStickers: {
     packs: () => '/admin/stickers/packs',
