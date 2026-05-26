@@ -258,6 +258,10 @@ export interface ChatForwardOrigin {
   author: { id: string; name: string };
 }
 
+export interface ChatMessageMetadata {
+  linkPreviews?: ChatLinkPreview[];
+}
+
 export interface ChatMessage {
   id: string;
   channelId: string;
@@ -269,6 +273,7 @@ export interface ChatMessage {
   deletedBy: { id: string; name: string } | null;
   author: UserSummary;
   markdown: string;
+  metadata: ChatMessageMetadata | null;
   attachments: ChatAttachment[];
   reactions: ChatReactionGroup[];
   replyTo: ChatReplyPreview | null;
