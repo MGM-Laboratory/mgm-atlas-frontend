@@ -120,7 +120,7 @@ export const MentionSuggest = React.forwardRef<MentionSuggestHandle, Props>(func
                   i === activeIndex ? 'bg-surface-muted' : 'hover:bg-surface-muted/60',
                 )}
               >
-                <Avatar src={m.avatarUrl} name={m.name} size={20} />
+                <Avatar src={m.avatarUrl} name={m.name} size={24} />
                 <span className="truncate font-medium text-ink">{m.name}</span>
                 {m.title ? (
                   <span className="ml-auto truncate text-[11px] text-ink-3">{m.title}</span>
