@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/lib/types';
 import { AttachmentRenderer } from './attachment-renderer';
+import { ForwardDialog } from './forward-dialog';
 import { LinkPreviewCard } from './link-preview-card';
 import { MarkdownBody } from './markdown-body';
 
@@ -29,6 +30,7 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
   const queryClient = useQueryClient();
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(message.markdown);
+  const [forwardOpen, setForwardOpen] = React.useState(false);
 
   const isAuthor = message.author.id === currentUserId;
   const canMod = isAuthor || isManager;
@@ -196,6 +198,9 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
           <IconAction title="Reply" onClick={() => onReply(message)}>
             <Reply className="h-3.5 w-3.5" strokeWidth={2.25} />
           </IconAction>
+          <IconAction title="Forward" onClick={() => setForwardOpen(true)}>
+            <Forward className="h-3.5 w-3.5" strokeWidth={2.25} />
+          </IconAction>
           {canEdit ? (
             <IconAction title="Edit" onClick={() => setEditing(true)}>
               <Pencil className="h-3.5 w-3.5" strokeWidth={2.25} />
@@ -218,6 +223,12 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
           ) : null}
         </div>
       ) : null}
+
+      <ForwardDialog
+        open={forwardOpen}
+        onClose={() => setForwardOpen(false)}
+        message={message}
+      />
     </li>
   );
 }

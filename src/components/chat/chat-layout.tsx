@@ -2,16 +2,19 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Hash, ArrowLeft, Radio } from 'lucide-react';
+import { Hash, ArrowLeft, Radio, Pin } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
 import { useChannelSocket } from '@/lib/realtime/use-channel-socket';
+import { Button } from '@/components/ui/button';
 import type { ChatChannel, ChatMessage } from '@/lib/types';
 import { ChannelList } from './channel-list';
+import { ChatSearch } from './chat-search';
 import { MessageList } from './message-list';
 import { MessageComposer } from './message-composer';
+import { PinPanel } from './pin-panel';
 import { TypingIndicator } from './typing-indicator';
 
 interface Props {
@@ -32,6 +35,7 @@ export function ChatLayout({
   isManager,
 }: Props) {
   const [replyTo, setReplyTo] = React.useState<ChatMessage | null>(null);
+  const [pinsOpen, setPinsOpen] = React.useState(false);
 
   // Reuse the channels query the sidebar already fetches.
   const channelsQuery = useQuery({
@@ -80,16 +84,28 @@ export function ChatLayout({
               · {channel.topic}
             </span>
           ) : null}
-          <span
-            className="ml-auto inline-flex items-center gap-1 text-[11px] text-ink-3"
-            title={isConnected ? 'Realtime connected' : 'Reconnecting…'}
-          >
-            <Radio
-              className={`h-3 w-3 ${isConnected ? 'text-brand-green' : 'text-ink-4'}`}
-              strokeWidth={2.25}
-            />
-            <span className="hidden md:inline">{isConnected ? 'Live' : 'Offline'}</span>
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1 text-[11px] text-ink-3"
+              title={isConnected ? 'Realtime connected' : 'Reconnecting…'}
+            >
+              <Radio
+                className={`h-3 w-3 ${isConnected ? 'text-brand-green' : 'text-ink-4'}`}
+                strokeWidth={2.25}
+              />
+              <span className="hidden md:inline">{isConnected ? 'Live' : 'Offline'}</span>
+            </span>
+            <ChatSearch projectSlug={projectSlug} projectId={projectId} channelId={channelId} />
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Pinned messages"
+              onClick={() => setPinsOpen((v) => !v)}
+              className={pinsOpen ? 'text-brand-blue' : undefined}
+            >
+              <Pin className="h-4 w-4" strokeWidth={2.25} />
+            </Button>
+          </div>
         </header>
 
         <MessageList
@@ -115,6 +131,14 @@ export function ChatLayout({
           onTypingStop={sendTypingStop}
         />
       </section>
+
+      <PinPanel
+        open={pinsOpen}
+        onClose={() => setPinsOpen(false)}
+        projectSlug={projectSlug}
+        channelId={channelId}
+        canModerate={isManager}
+      />
     </div>
   );
 }

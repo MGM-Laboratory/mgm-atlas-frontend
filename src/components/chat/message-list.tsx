@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
@@ -38,6 +39,8 @@ export function MessageList({
 }: Props) {
   const queryClient = useQueryClient();
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+  const jumpToMessageId = searchParams.get('msg');
 
   const query = useInfiniteQuery({
     queryKey: queryKeys.chat.messages(channelId),
@@ -96,6 +99,29 @@ export function MessageList({
       });
   }, [lastMessageId, projectSlug, channelId, queryClient]);
 
+  /**
+   * When the URL carries `?msg=<id>` (search hit / pin click), scroll
+   * that message into view and flash a highlight ring. If the message
+   * isn't yet loaded we keep paging older history until it is, capped
+   * at 10 page-fetches so a stale link doesn't loop forever.
+   */
+  const jumpAttemptsRef = React.useRef(0);
+  React.useEffect(() => {
+    if (!jumpToMessageId || messages.length === 0) return;
+    const target = document.getElementById(`chat-msg-${jumpToMessageId}`);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('chat-msg-flash');
+      setTimeout(() => target.classList.remove('chat-msg-flash'), 1800);
+      jumpAttemptsRef.current = 0;
+      return;
+    }
+    if (query.hasNextPage && jumpAttemptsRef.current < 10) {
+      jumpAttemptsRef.current += 1;
+      void query.fetchNextPage();
+    }
+  }, [jumpToMessageId, messages, query.hasNextPage, query]);
+
   if (query.isLoading) {
     return (
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
@@ -131,14 +157,15 @@ export function MessageList({
               prev &&
               new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60 * 1000;
             return (
-              <MessageItem
-                key={m.id}
-                message={m}
-                grouped={Boolean(sameAuthor && closeInTime)}
-                currentUserId={currentUserId}
-                isManager={isManager}
-                onReply={onReply}
-              />
+              <div key={m.id} id={`chat-msg-${m.id}`}>
+                <MessageItem
+                  message={m}
+                  grouped={Boolean(sameAuthor && closeInTime)}
+                  currentUserId={currentUserId}
+                  isManager={isManager}
+                  onReply={onReply}
+                />
+              </div>
             );
           })}
         </ul>

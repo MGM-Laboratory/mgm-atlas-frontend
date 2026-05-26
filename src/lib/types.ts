@@ -354,6 +354,28 @@ export interface ChatMember {
   title: string | null;
 }
 
+export interface ChatSearchHit {
+  id: string;
+  channelId: string;
+  channelName: string;
+  projectId: string;
+  projectSlug: string;
+  projectTitle: string;
+  authorId: string;
+  authorName: string;
+  /** Snippet with `<mark>` wrappers — sanitised by the renderer. */
+  snippet: string;
+  rank: number;
+  createdAt: string;
+}
+
+export interface ChatSearchResponse {
+  scope: 'channel' | 'project' | 'global';
+  query: string;
+  hits: ChatSearchHit[];
+  nextCursor: string | null;
+}
+
 export interface Sticker {
   id: string;
   name: string;
