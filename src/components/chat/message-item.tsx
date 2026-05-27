@@ -31,6 +31,13 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(message.markdown);
   const [forwardOpen, setForwardOpen] = React.useState(false);
+  // Anchored popovers inside the hover action bar must keep the bar in DOM
+  // while they're open — otherwise the trigger gets display:none on mouse-
+  // leave and Radix re-anchors the popover to a zero-size box (visible
+  // bug: pin/emoji popover jumps left and flickers).
+  const [reactionOpen, setReactionOpen] = React.useState(false);
+  const [pinOpen, setPinOpen] = React.useState(false);
+  const menuOpen = reactionOpen || pinOpen;
 
   const isAuthor = message.author.id === currentUserId;
   const canMod = isAuthor || isManager;
@@ -216,10 +223,22 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
         </div>
       </div>
 
-      {/* Hover action bar */}
+      {/* Hover action bar.  While an anchored popover (pin / emoji) is open
+          we force the bar to `flex` so the popover trigger keeps its
+          bounding box — otherwise moving the cursor off the message row
+          hides the trigger and Radix re-anchors the popover, which is
+          what was causing the flicker / jump. */}
       {!isDeleted && !editing ? (
-        <div className="absolute right-2 top-0 hidden gap-0.5 rounded border border-line bg-white p-0.5 shadow-1 group-hover:flex">
-          <ReactionPicker onPick={(e) => reactMutation.mutate(e)} />
+        <div
+          className={cn(
+            'absolute right-2 top-0 gap-0.5 rounded border border-line bg-white p-0.5 shadow-1',
+            menuOpen ? 'flex' : 'hidden group-hover:flex',
+          )}
+        >
+          <ReactionPicker
+            onPick={(e) => reactMutation.mutate(e)}
+            onOpenChange={setReactionOpen}
+          />
           <IconAction title="Reply" onClick={() => onReply(message)}>
             <Reply className="h-3.5 w-3.5" strokeWidth={2.25} />
           </IconAction>
@@ -232,7 +251,12 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
             </IconAction>
           ) : null}
           {isManager ? (
-            <PinButton messageId={message.id} isPinned={isPinned} onChanged={invalidate} />
+            <PinButton
+              messageId={message.id}
+              isPinned={isPinned}
+              onChanged={invalidate}
+              onOpenChange={setPinOpen}
+            />
           ) : null}
           {canMod ? (
             <IconAction

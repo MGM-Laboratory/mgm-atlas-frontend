@@ -13,6 +13,10 @@ interface Props {
   messageId: string;
   isPinned: boolean;
   onChanged: () => void;
+  /** Reported up so MessageItem can keep the action bar visible while the
+   *  pin note popover is open — otherwise the trigger disappears as soon
+   *  as the cursor leaves the message row and Radix re-anchors. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -27,10 +31,18 @@ interface Props {
  * the active state, and gets a one-shot bounce animation on click so
  * the action feels acknowledged even before the network round trip.
  */
-export function PinButton({ messageId, isPinned, onChanged }: Props) {
+export function PinButton({ messageId, isPinned, onChanged, onOpenChange }: Props) {
   const [open, setOpen] = React.useState(false);
   const [note, setNote] = React.useState('');
   const [bouncing, setBouncing] = React.useState(false);
+
+  const setBoth = React.useCallback(
+    (o: boolean) => {
+      setOpen(o);
+      onOpenChange?.(o);
+    },
+    [onOpenChange],
+  );
 
   const pinMutation = useMutation({
     mutationFn: (payload: { note?: string }) =>
@@ -40,7 +52,7 @@ export function PinButton({ messageId, isPinned, onChanged }: Props) {
       }),
     onSuccess: () => {
       setNote('');
-      setOpen(false);
+      setBoth(false);
       onChanged();
     },
   });
@@ -77,7 +89,7 @@ export function PinButton({ messageId, isPinned, onChanged }: Props) {
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setBoth}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -119,7 +131,7 @@ export function PinButton({ messageId, isPinned, onChanged }: Props) {
             <span>{note.length}/280</span>
           </div>
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            <Button size="sm" variant="ghost" onClick={() => setBoth(false)}>
               Cancel
             </Button>
             <Button
