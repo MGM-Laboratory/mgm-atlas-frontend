@@ -41,20 +41,26 @@ export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick }: Props)
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        // Anchor on the bottom-left of the smile button: popover sits
+        // above the trigger (composer is at the bottom of the screen, so
+        // "below" would clip) and extends RIGHTWARD across the composer
+        // instead of jutting off the left edge.
         side="top"
-        align="end"
+        align="start"
         sideOffset={8}
         collisionPadding={16}
         avoidCollisions
         className="w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden p-0"
       >
         <Tabs defaultValue="emoji" className="flex flex-col">
-          <TabsList className="border-b border-line">
+          {/* Add breathing room around the tab strip so the labels aren't
+              flush against the popover's left edge. */}
+          <TabsList className="gap-4 border-b border-line px-3 pt-2">
             <TabsTrigger value="emoji">Emoji</TabsTrigger>
             <TabsTrigger value="gif">GIF</TabsTrigger>
             <TabsTrigger value="sticker">Sticker</TabsTrigger>
           </TabsList>
-          <TabsContent value="emoji" className="p-0">
+          <TabsContent value="emoji" className="mt-0 p-0">
             <React.Suspense
               fallback={
                 <div className="grid h-[360px] place-items-center text-ink-3">
@@ -73,7 +79,7 @@ export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick }: Props)
               />
             </React.Suspense>
           </TabsContent>
-          <TabsContent value="gif" className="p-2">
+          <TabsContent value="gif" className="mt-0 p-2">
             <GifTab
               onPick={(g) => {
                 onGifPick(g);
@@ -81,7 +87,7 @@ export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick }: Props)
               }}
             />
           </TabsContent>
-          <TabsContent value="sticker" className="p-2">
+          <TabsContent value="sticker" className="mt-0 p-2">
             <StickerTab
               onPick={(s) => {
                 onStickerPick(s);
