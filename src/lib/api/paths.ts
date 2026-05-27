@@ -134,4 +134,22 @@ export const apiPaths = {
     registerSticker: (packId: string) => `/admin/stickers/packs/${packId}/stickers`,
     sticker: (stickerId: string) => `/admin/stickers/stickers/${stickerId}`,
   },
+
+  // ─── PMO (project management office) ──────────────────────────────────
+  // Gated by NEXT_PUBLIC_PMO_ENABLED on the frontend and PMO_ENABLED on
+  // the backend; routes 404 when the flag is off.
+  pmo: {
+    lists: {
+      list: (slug: string) => `/projects/${slug}/task-lists`,
+      create: (slug: string) => `/projects/${slug}/task-lists`,
+      reorder: (slug: string) => `/projects/${slug}/task-lists/reorder`,
+      one: (slug: string, listId: string) => `/projects/${slug}/task-lists/${listId}`,
+      archive: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/archive`,
+      unarchive: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/unarchive`,
+      reorderTabs: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tabs/reorder`,
+    },
+  },
 };
