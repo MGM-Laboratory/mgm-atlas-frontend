@@ -15,6 +15,11 @@ const QUICK_REACTIONS = ['👍', '❤️', '🎉', '🚀', '😂', '👀'];
 
 interface Props {
   onPick: (emoji: string) => void;
+  /** Reported to the parent so it can keep the hover-bar pinned open while
+   *  the popover is mounted — otherwise the trigger loses its bounding box
+   *  the moment the cursor leaves the message row and Radix re-anchors the
+   *  popover, causing the flicker / jump the user reported. */
+  onOpenChange?: (open: boolean) => void;
   /** Optional className applied to the trigger button. */
   triggerClassName?: string;
 }
@@ -25,11 +30,18 @@ interface Props {
  * grid. Anchors above the message row by default so it doesn't fall
  * off the bottom of the viewport.
  */
-export function ReactionPicker({ onPick, triggerClassName }: Props) {
+export function ReactionPicker({ onPick, onOpenChange, triggerClassName }: Props) {
   const [open, setOpen] = React.useState(false);
+  const setBoth = React.useCallback(
+    (o: boolean) => {
+      setOpen(o);
+      onOpenChange?.(o);
+    },
+    [onOpenChange],
+  );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setBoth}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -58,7 +70,7 @@ export function ReactionPicker({ onPick, triggerClassName }: Props) {
               type="button"
               onClick={() => {
                 onPick(e);
-                setOpen(false);
+                setBoth(false);
               }}
               className="rounded p-1 text-[18px] hover:bg-surface-muted"
             >
@@ -76,7 +88,7 @@ export function ReactionPicker({ onPick, triggerClassName }: Props) {
           <EmojiPicker
             onEmojiClick={(e) => {
               onPick(e.emoji);
-              setOpen(false);
+              setBoth(false);
             }}
             width="100%"
             height={320}
