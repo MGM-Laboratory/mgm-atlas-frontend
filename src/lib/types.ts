@@ -291,6 +291,13 @@ export interface ChatMessagePage {
   nextCursor: string | null;
 }
 
+export interface ChatChannelState {
+  /** Last message the current user has read in this channel, if any. */
+  lastReadMessageId: string | null;
+  /** Timestamp the user last read the channel, if any. */
+  lastReadAt: string | null;
+}
+
 export interface ChatProjectOverviewChannel {
   id: string;
   name: string;

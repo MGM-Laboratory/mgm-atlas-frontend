@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
-import type { ChatMessage, ChatMessagePage } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import type { ChatChannelState, ChatMessage, ChatMessagePage } from '@/lib/types';
 import { MessageItem } from './message-item';
 
 interface Props {
@@ -24,10 +25,23 @@ interface Props {
  * latest 50 messages; getNextPageParam returns the cursor for older
  * history, fetched on scroll-up.
  *
- * When `live` is true (socket connected), the realtime layer pushes
- * updates straight into this query cache via `setQueryData`, so we
- * disable the polling fallback. When `live` is false (no Redis, lost
- * connection, etc.) we drop back to 5s polling automatically.
+ * Auto-follow behaviour:
+ *   - An IntersectionObserver watches a 1-px sentinel placed at the very
+ *     bottom of the content, with `rootMargin` extending the intersection
+ *     area 200px below the viewport. Whenever the sentinel intersects
+ *     that area we're "following the conversation"; otherwise we're not.
+ *   - Each render in follow mode pins to the sentinel via scrollIntoView,
+ *     and a ResizeObserver pins again whenever post-layout image / embed
+ *     loads grow the content (which used to push new messages above the
+ *     fold under the old scroll-math approach).
+ *
+ * Unread divider:
+ *   - We fetch the user's last-read cutoff once per channel via the
+ *     /state endpoint and FREEZE it for the rest of the session. A
+ *     "New" divider renders above the first message past that cutoff,
+ *     and the initial scroll lands on the divider (not on the bottom).
+ *   - The existing /read POST is gated until the cutoff is captured so
+ *     it can't race-mark-read before we know where the divider goes.
  */
 export function MessageList({
   projectSlug,
@@ -40,6 +54,7 @@ export function MessageList({
   const queryClient = useQueryClient();
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const bottomSentinelRef = React.useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const jumpToMessageId = searchParams.get('msg');
 
@@ -60,29 +75,116 @@ export function MessageList({
     return all.slice().reverse();
   }, [query.data]);
 
-  // Auto-follow the bottom of the conversation. We're "following" when the
-  // viewport is within 200px of the bottom; once the user scrolls further
-  // up to read history we stop following so we don't yank their position.
-  // Using a ref (not state) keeps the ResizeObserver below from rebuilding
-  // on every scroll.
+  // ─── Channel read-state (drives the unread divider) ──────────────────
+  // Always-fresh: refetch on each mount AND on each channelId change
+  // (queryKey changes). Captured into state below and then frozen for
+  // the rest of the session in this channel.
+  const stateQuery = useQuery({
+    queryKey: queryKeys.chat.channelState(channelId),
+    queryFn: () =>
+      api<ChatChannelState>(apiPaths.chat.channelState(projectSlug, channelId)),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+  });
+
+  // Frozen cutoff per channelId. `undefined` = not yet captured; `null` =
+  // captured but the user has never read this channel (so all messages
+  // count as unread); string = the cutoff timestamp.
+  const [frozenCutoff, setFrozenCutoff] = React.useState<string | null | undefined>(
+    undefined,
+  );
+
+  // Reset on channel switch.
+  React.useEffect(() => {
+    setFrozenCutoff(undefined);
+  }, [channelId]);
+
+  // Capture once per channel after the state query resolves.
+  React.useEffect(() => {
+    if (frozenCutoff !== undefined) return;
+    if (!stateQuery.data) return;
+    setFrozenCutoff(stateQuery.data.lastReadAt);
+  }, [stateQuery.data, frozenCutoff]);
+
+  // First message that should appear BELOW the New-messages divider. We
+  // skip the user's own messages so the divider doesn't show up just
+  // because they posted while in another channel.
+  const firstUnreadIndex = React.useMemo(() => {
+    if (!frozenCutoff || messages.length === 0) return -1;
+    return messages.findIndex(
+      (m) => m.createdAt > frozenCutoff && m.author.id !== currentUserId,
+    );
+  }, [messages, frozenCutoff, currentUserId]);
+
+  // ─── Auto-follow (IntersectionObserver-based) ────────────────────────
   const followBottomRef = React.useRef(true);
 
-  const scrollToBottom = React.useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+  React.useEffect(() => {
+    const root = scrollRef.current;
+    const target = bottomSentinelRef.current;
+    if (!root || !target) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) followBottomRef.current = entry.isIntersecting;
+      },
+      // `200px` bottom rootMargin: within 200px of the end of content
+      // still counts as "following". Threshold 0 fires the moment any
+      // part of the sentinel enters/leaves the area.
+      { root, rootMargin: '0px 0px 200px 0px', threshold: 0 },
+    );
+    io.observe(target);
+    return () => io.disconnect();
   }, []);
 
-  // Snap to bottom on the first load + whenever a new message arrives
-  // (length changes) while we're in follow mode.
-  React.useLayoutEffect(() => {
-    if (followBottomRef.current) scrollToBottom();
-  }, [messages.length, scrollToBottom]);
+  const scrollToBottom = React.useCallback(() => {
+    bottomSentinelRef.current?.scrollIntoView({ block: 'end' });
+  }, []);
 
-  // Images / embeds / link previews can finish loading AFTER the layout
-  // effect runs — without this observer the message would push above the
-  // fold once it grows. Re-pin on any content size change while in follow
-  // mode so the newest message always stays visible.
+  // ─── Initial scroll: divider if unread, else bottom ──────────────────
+  const [initialScrollDone, setInitialScrollDone] = React.useState(false);
+  React.useEffect(() => {
+    setInitialScrollDone(false);
+  }, [channelId]);
+
+  React.useLayoutEffect(() => {
+    if (initialScrollDone) return;
+    if (frozenCutoff === undefined) return; // wait for cutoff capture
+    if (messages.length === 0) return;
+    setInitialScrollDone(true);
+
+    if (firstUnreadIndex >= 0) {
+      const divider = document.getElementById(`unread-divider-${channelId}`);
+      if (divider) {
+        divider.scrollIntoView({ block: 'center' });
+        // Don't auto-follow new messages while the user is mid-conversation
+        // reading the unread block — they'll scroll down themselves and the
+        // IntersectionObserver will re-engage following at the bottom.
+        followBottomRef.current = false;
+        return;
+      }
+    }
+    scrollToBottom();
+  }, [
+    initialScrollDone,
+    frozenCutoff,
+    messages.length,
+    firstUnreadIndex,
+    channelId,
+    scrollToBottom,
+  ]);
+
+  // Pin to bottom on subsequent renders (new messages arriving) while
+  // following. Skip until the initial scroll has happened so we don't
+  // race the divider-positioning code above.
+  React.useLayoutEffect(() => {
+    if (!initialScrollDone) return;
+    if (followBottomRef.current) scrollToBottom();
+  }, [messages, scrollToBottom, initialScrollDone]);
+
+  // Images / embeds / link previews finish loading AFTER the layout
+  // effect runs — without this observer the new message would push
+  // above the fold once it grows. Pin again on any size change.
   React.useEffect(() => {
     const inner = contentRef.current;
     if (!inner) return;
@@ -93,12 +195,9 @@ export function MessageList({
     return () => ro.disconnect();
   }, [scrollToBottom]);
 
+  // ─── Scroll handler: only used for triggering pagination ─────────────
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    // Loosened the threshold from 80→200px so a half-screen of "reading
-    // last few messages" still counts as following the conversation.
-    followBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
-    // Pull older history when user reaches the top.
     if (el.scrollTop < 80 && query.hasNextPage && !query.isFetchingNextPage) {
       const prevHeight = el.scrollHeight;
       void query.fetchNextPage().then(() => {
@@ -111,9 +210,12 @@ export function MessageList({
     }
   };
 
-  // Mark channel as read whenever we render new messages.
+  // ─── Mark channel as read ─────────────────────────────────────────────
+  // Gate on cutoff capture so we don't overwrite the server-side last-
+  // read before /state has answered with the OLD value.
   const lastMessageId = messages[messages.length - 1]?.id;
   React.useEffect(() => {
+    if (frozenCutoff === undefined) return;
     if (!lastMessageId) return;
     void api(apiPaths.chat.read(projectSlug, channelId), {
       method: 'POST',
@@ -123,14 +225,9 @@ export function MessageList({
       .catch(() => {
         /* read marker is best-effort */
       });
-  }, [lastMessageId, projectSlug, channelId, queryClient]);
+  }, [frozenCutoff, lastMessageId, projectSlug, channelId, queryClient]);
 
-  /**
-   * When the URL carries `?msg=<id>` (search hit / pin click), scroll
-   * that message into view and flash a highlight ring. If the message
-   * isn't yet loaded we keep paging older history until it is, capped
-   * at 10 page-fetches so a stale link doesn't loop forever.
-   */
+  // ─── Jump-to-message (search hit / pin click) ────────────────────────
   const jumpAttemptsRef = React.useRef(0);
   React.useEffect(() => {
     if (!jumpToMessageId || messages.length === 0) return;
@@ -140,6 +237,8 @@ export function MessageList({
       target.classList.add('chat-msg-flash');
       setTimeout(() => target.classList.remove('chat-msg-flash'), 1800);
       jumpAttemptsRef.current = 0;
+      // Jump disables follow so the new message doesn't snap us back.
+      followBottomRef.current = false;
       return;
     }
     if (query.hasNextPage && jumpAttemptsRef.current < 10) {
@@ -168,7 +267,9 @@ export function MessageList({
     >
       <div ref={contentRef}>
         {query.isFetchingNextPage ? (
-          <div className="py-2 text-center text-[12px] text-ink-3">Loading older messages…</div>
+          <div className="py-2 text-center text-[12px] text-ink-3">
+            Loading older messages…
+          </div>
         ) : null}
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[14px] text-ink-3">
@@ -184,21 +285,47 @@ export function MessageList({
                 prev &&
                 new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <
                   5 * 60 * 1000;
+              const isFirstUnread = i === firstUnreadIndex;
               return (
-                <div key={m.id} id={`chat-msg-${m.id}`}>
-                  <MessageItem
-                    message={m}
-                    grouped={Boolean(sameAuthor && closeInTime)}
-                    currentUserId={currentUserId}
-                    isManager={isManager}
-                    onReply={onReply}
-                  />
-                </div>
+                <React.Fragment key={m.id}>
+                  {isFirstUnread ? <UnreadDivider channelId={channelId} /> : null}
+                  <div
+                    id={`chat-msg-${m.id}`}
+                    className={cn(isFirstUnread && 'pt-0.5')}
+                  >
+                    <MessageItem
+                      message={m}
+                      grouped={Boolean(sameAuthor && closeInTime) && !isFirstUnread}
+                      currentUserId={currentUserId}
+                      isManager={isManager}
+                      onReply={onReply}
+                    />
+                  </div>
+                </React.Fragment>
               );
             })}
           </ul>
         )}
+        {/* Bottom sentinel for the IntersectionObserver + scrollIntoView
+            target. 1-px tall, aria-hidden so screen readers ignore it. */}
+        <div ref={bottomSentinelRef} aria-hidden style={{ height: 1 }} />
       </div>
     </div>
+  );
+}
+
+function UnreadDivider({ channelId }: { channelId: string }) {
+  return (
+    <li
+      id={`unread-divider-${channelId}`}
+      aria-label="New messages"
+      className="my-3 flex items-center gap-2 px-1"
+    >
+      <div className="h-px flex-1 bg-brand-red/40" />
+      <span className="rounded-full bg-brand-red/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-red">
+        New
+      </span>
+      <div className="h-px flex-1 bg-brand-red/40" />
+    </li>
   );
 }
