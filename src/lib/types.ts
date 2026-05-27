@@ -598,3 +598,74 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
 };
 
 export const TASK_PRIORITY_ORDER: TaskPriority[] = ['NONE', 'LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+
+// ─── Task comments + activity (Phase 3) ─────────────────────────────────────
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  /// GFM markdown source. May be the tombstone "_[comment removed]_" if deleted.
+  markdown: string;
+  replyToId: string | null;
+  editedAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  author: TaskAssigneeUser;
+}
+
+export interface PaginatedComments {
+  items: TaskComment[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type TaskActivityKind =
+  | 'CREATED'
+  | 'RENAMED'
+  | 'DESCRIPTION_EDITED'
+  | 'STATUS_CHANGED'
+  | 'PRIORITY_CHANGED'
+  | 'ASSIGNED'
+  | 'UNASSIGNED'
+  | 'DUE_DATE_SET'
+  | 'DUE_DATE_CLEARED'
+  | 'START_DATE_SET'
+  | 'DEPENDENCY_ADDED'
+  | 'DEPENDENCY_REMOVED'
+  | 'COMMENT_ADDED'
+  | 'ATTACHMENT_ADDED'
+  | 'ARCHIVED'
+  | 'UNARCHIVED'
+  | 'COMPLETED'
+  | 'REOPENED'
+  | 'MENTIONED';
+
+export interface TaskActivity {
+  id: string;
+  kind: TaskActivityKind;
+  /// Structured diff. Shape depends on `kind`; see backend
+  /// task-activity.service for the writer.
+  payload: Record<string, unknown>;
+  createdAt: string;
+  actor: TaskAssigneeUser | null;
+}
+
+export interface PaginatedActivity {
+  items: TaskActivity[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type MentionSuggestionKind = 'user' | 'task';
+
+export interface MentionSuggestion {
+  kind: MentionSuggestionKind;
+  id: string;
+  label: string;
+  subtitle?: string;
+  avatarUrl?: string | null;
+  iconName?: string | null;
+  iconColor?: string | null;
+}

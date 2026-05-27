@@ -18,7 +18,13 @@ import { ListNavbar } from '@/components/pmo/list-navbar';
 import { ListSettingsDialog } from '@/components/pmo/list-settings-dialog';
 import { LucideIcon } from '@/components/pmo/lucide-icon';
 
-export default function TaskListLayout({ children }: { children: React.ReactNode }) {
+export default function TaskListLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  modal: React.ReactNode;
+}) {
   const params = useParams();
   const slug = params.slug as string;
   const listId = params.listId as string;
@@ -162,6 +168,11 @@ export default function TaskListLayout({ children }: { children: React.ReactNode
           onOpenChange={setSettingsOpen}
         />
       ) : null}
+
+      {/* Parallel slot for the task popup. Renders the Dialog when the
+          user navigates from a sibling route (list/kanban/gantt) to
+          tasks/:key. See @modal/(.)tasks/[taskKey]/page.tsx. */}
+      {modal}
     </div>
   );
 }
