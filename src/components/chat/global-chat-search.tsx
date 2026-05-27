@@ -64,7 +64,8 @@ export function GlobalChatSearch({ trigger, open: controlledOpen, onOpenChange }
         </DialogTrigger>
       )}
       <DialogContent size="lg" className="max-h-[80vh] overflow-hidden p-0">
-        <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+        {/* Reserve room on the right for the Dialog's built-in close (h-8 w-8 at right-3 top-3). */}
+        <div className="flex items-center gap-2 border-b border-line px-4 py-3 pr-14">
           <Search className="h-4 w-4 text-ink-3" strokeWidth={2.25} />
           <input
             autoFocus
@@ -73,9 +74,6 @@ export function GlobalChatSearch({ trigger, open: controlledOpen, onOpenChange }
             placeholder="Search every chat you have access to…"
             className="flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
           />
-          <kbd className="rounded border border-line bg-surface-muted px-1.5 py-0.5 text-[10px] text-ink-3">
-            esc
-          </kbd>
         </div>
         <div className="max-h-[60vh] overflow-y-auto p-2">
           {debounced.trim().length < 2 ? (

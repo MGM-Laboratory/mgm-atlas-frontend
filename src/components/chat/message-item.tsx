@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Reply, Pin, Trash2, Pencil, Check, X, SmilePlus, Forward } from 'lucide-react';
+import { Reply, Trash2, Pencil, Check, X, Forward, Pin } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
@@ -14,8 +14,8 @@ import { AttachmentRenderer } from './attachment-renderer';
 import { ForwardDialog } from './forward-dialog';
 import { LinkPreviewCard } from './link-preview-card';
 import { MarkdownBody } from './markdown-body';
-
-const QUICK_REACTIONS = ['👍', '❤️', '🎉', '🚀', '😂', '👀'];
+import { PinButton } from './pin-button';
+import { ReactionPicker } from './reaction-picker';
 
 interface Props {
   message: ChatMessage;
@@ -35,9 +35,13 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
   const isAuthor = message.author.id === currentUserId;
   const canMod = isAuthor || isManager;
   const isDeleted = !!message.deletedAt;
+  const isPinned = !!message.isPinned;
+  const pinNote = message.pinNote ?? null;
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.chat.messages(message.channelId) });
+  const invalidate = React.useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.messages(message.channelId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.pins(message.channelId) });
+  }, [queryClient, message.channelId]);
 
   const editMutation = useMutation({
     mutationFn: (markdown: string) =>
@@ -71,7 +75,28 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
   const canEdit = isAuthor && !isDeleted && ageHrs < 24;
 
   return (
-    <li className={cn('group relative -mx-2 rounded px-2 py-1 hover:bg-surface-muted/60')}>
+    <li
+      className={cn(
+        'group relative -mx-2 rounded px-2 py-1 transition-colors',
+        // Subtle blue left rail + tinted background differentiate pinned
+        // messages from the surrounding stream without shouting.
+        isPinned && !isDeleted
+          ? 'border-l-2 border-brand-blue bg-brand-blue/[0.03] hover:bg-brand-blue/[0.06]'
+          : 'hover:bg-surface-muted/60',
+      )}
+    >
+      {isPinned && !isDeleted ? (
+        <div className="mb-1 flex items-start gap-1.5 pl-12 pr-2 text-[11px] text-brand-blue">
+          <Pin className="mt-0.5 h-3 w-3 shrink-0 fill-current" strokeWidth={2.25} />
+          <span className="font-medium">Pinned</span>
+          {pinNote ? (
+            <span className="truncate font-normal text-ink-2" title={pinNote}>
+              · {pinNote}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex gap-3">
         <div className="w-9 shrink-0 pt-0.5">
           {grouped ? null : <Avatar src={message.author.avatarUrl} name={message.author.name} size={32} />}
@@ -207,9 +232,7 @@ export function MessageItem({ message, grouped, currentUserId, isManager, onRepl
             </IconAction>
           ) : null}
           {isManager ? (
-            <IconAction title="Pin" onClick={() => void api(apiPaths.chat.pinMessage(message.id), { method: 'POST' }).then(invalidate)}>
-              <Pin className="h-3.5 w-3.5" strokeWidth={2.25} />
-            </IconAction>
+            <PinButton messageId={message.id} isPinned={isPinned} onChanged={invalidate} />
           ) : null}
           {canMod ? (
             <IconAction
@@ -251,32 +274,5 @@ function IconAction({
     >
       {children}
     </button>
-  );
-}
-
-function ReactionPicker({ onPick }: { onPick: (emoji: string) => void }) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <div className="relative">
-      <IconAction title="React" onClick={() => setOpen((o) => !o)}>
-        <SmilePlus className="h-3.5 w-3.5" strokeWidth={2.25} />
-      </IconAction>
-      {open ? (
-        <div className="absolute right-0 top-8 z-10 flex gap-1 rounded border border-line bg-white p-1.5 shadow-2">
-          {QUICK_REACTIONS.map((e) => (
-            <button
-              key={e}
-              onClick={() => {
-                onPick(e);
-                setOpen(false);
-              }}
-              className="rounded p-1 text-[18px] hover:bg-surface-muted"
-            >
-              {e}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
   );
 }
