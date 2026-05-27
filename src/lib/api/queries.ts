@@ -36,6 +36,7 @@ export const queryKeys = {
     channels: (projectSlugOrId: string) => ['chat', 'channels', projectSlugOrId] as const,
     messages: (channelId: string) => ['chat', 'messages', channelId] as const,
     pins: (channelId: string) => ['chat', 'pins', channelId] as const,
+    channelState: (channelId: string) => ['chat', 'channel-state', channelId] as const,
   },
 } as const;
 

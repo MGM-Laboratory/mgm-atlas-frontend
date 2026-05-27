@@ -84,6 +84,8 @@ export const apiPaths = {
     },
     read: (projectSlugOrId: string, channelId: string) =>
       `/projects/${projectSlugOrId}/chat/channels/${channelId}/read`,
+    channelState: (projectSlugOrId: string, channelId: string) =>
+      `/projects/${projectSlugOrId}/chat/channels/${channelId}/state`,
     pins: (projectSlugOrId: string, channelId: string) =>
       `/projects/${projectSlugOrId}/chat/channels/${channelId}/pins`,
     editMessage: (messageId: string) => `/chat/messages/${messageId}`,
