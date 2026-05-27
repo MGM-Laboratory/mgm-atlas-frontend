@@ -44,7 +44,12 @@ export const queryKeys = {
     tasks: (slug: string, listId: string, filters?: Record<string, unknown>) =>
       ['pmo', 'tasks', slug, listId, filters ?? {}] as const,
     task: (slug: string, taskId: string) => ['pmo', 'task', slug, taskId] as const,
+    taskByKey: (slug: string, key: string) => ['pmo', 'task-by-key', slug, key] as const,
     members: (slug: string, q?: string) => ['pmo', 'members', slug, q ?? ''] as const,
+    comments: (slug: string, taskId: string) => ['pmo', 'comments', slug, taskId] as const,
+    activity: (slug: string, taskId: string) => ['pmo', 'activity', slug, taskId] as const,
+    mentionSearch: (slug: string, kind: 'user' | 'task', q: string) =>
+      ['pmo', 'mention-search', slug, kind, q] as const,
   },
 } as const;
 

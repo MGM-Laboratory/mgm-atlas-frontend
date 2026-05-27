@@ -186,5 +186,24 @@ export const apiPaths = {
     /// Returns the same {id, name, avatarUrl} shape we need.
     members: (slug: string, q?: string) =>
       `/projects/${slug}/chat/members${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    /// Mention search for the description / comment composer @-popover.
+    /// `kind=user` (project members) | `kind=task` (project tasks).
+    mentionSearch: (slug: string, kind: 'user' | 'task', q?: string) => {
+      const params = new URLSearchParams({ kind });
+      if (q) params.set('q', q);
+      return `/projects/${slug}/pmo/mention-search?${params.toString()}`;
+    },
+    comments: {
+      list: (slug: string, taskId: string, page = 1, pageSize = 50) =>
+        `/projects/${slug}/tasks/${taskId}/comments?page=${page}&pageSize=${pageSize}`,
+      create: (slug: string, taskId: string) =>
+        `/projects/${slug}/tasks/${taskId}/comments`,
+      update: (slug: string, commentId: string) =>
+        `/projects/${slug}/task-comments/${commentId}`,
+      remove: (slug: string, commentId: string) =>
+        `/projects/${slug}/task-comments/${commentId}`,
+    },
+    activity: (slug: string, taskId: string) =>
+      `/projects/${slug}/tasks/${taskId}/activity`,
   },
 };
