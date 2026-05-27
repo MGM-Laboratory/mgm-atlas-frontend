@@ -59,7 +59,7 @@ export function ChatLayout({
   React.useEffect(() => setReplyTo(null), [channelId]);
 
   return (
-    <div className="flex h-[calc(100svh-3.5rem)] md:h-[calc(100svh-4rem)]">
+    <div className="flex h-full min-h-0">
       <ChannelList
         projectSlug={projectSlug}
         projectTitle={projectTitle}

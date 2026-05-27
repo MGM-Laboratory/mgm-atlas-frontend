@@ -16,6 +16,7 @@ interface PinnedRow {
   channelId: string;
   position: number;
   pinnedAt: string;
+  note: string | null;
   pinnedBy: { id: string; name: string; avatarUrl: string | null };
   message: {
     id: string;
@@ -87,6 +88,11 @@ export function PinPanel({ open, onClose, projectSlug, channelId, canModerate }:
           <ul className="divide-y divide-line">
             {pins.map((p) => (
               <li key={p.id} className="px-4 py-3">
+                {p.note ? (
+                  <div className="mb-2 rounded border-l-2 border-brand-blue bg-brand-blue/5 px-2 py-1 text-[12px] text-ink-2">
+                    {p.note}
+                  </div>
+                ) : null}
                 <a
                   href={`/projects/${projectSlug}/chat/${channelId}?msg=${p.message.id}`}
                   className="block rounded -mx-2 px-2 py-1 hover:bg-surface-muted/60"

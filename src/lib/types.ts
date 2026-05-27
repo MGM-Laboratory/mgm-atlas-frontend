@@ -278,6 +278,10 @@ export interface ChatMessage {
   reactions: ChatReactionGroup[];
   replyTo: ChatReplyPreview | null;
   forwardedFrom: ChatForwardOrigin | null;
+  /** True if the message has an active pin in its channel. */
+  isPinned?: boolean;
+  /** Optional manager-supplied context note attached at pin time. */
+  pinNote?: string | null;
   /** Echoed back from the request so optimistic UI can reconcile. */
   clientMessageId?: string;
 }

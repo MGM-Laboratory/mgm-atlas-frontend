@@ -117,7 +117,10 @@ export function useChannelSocket({ projectId, channelId, currentUserId }: UseCha
       void payload;
     };
     const onPinChange = () => {
+      // Both the inline pinned banner on each message AND the right-side
+      // pin panel need to refresh — they read from different queries.
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.pins(channelId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.messages(channelId) });
     };
 
     // ─── Typing / presence ────────────────────────────────────────

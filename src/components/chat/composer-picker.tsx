@@ -40,7 +40,14 @@ export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick }: Props)
           <Smile className="h-4 w-4" strokeWidth={2.25} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[340px] p-0">
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        collisionPadding={16}
+        avoidCollisions
+        className="w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden p-0"
+      >
         <Tabs defaultValue="emoji" className="flex flex-col">
           <TabsList className="border-b border-line">
             <TabsTrigger value="emoji">Emoji</TabsTrigger>
