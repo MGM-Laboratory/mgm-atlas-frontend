@@ -39,6 +39,7 @@ export function MessageList({
 }: Props) {
   const queryClient = useQueryClient();
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const jumpToMessageId = searchParams.get('msg');
 
@@ -59,19 +60,44 @@ export function MessageList({
     return all.slice().reverse();
   }, [query.data]);
 
-  // Auto-scroll to bottom on first load and when new messages arrive
-  // while the user is near the bottom (within 80px). Don't yank scroll
-  // when they're reading history.
-  const wasNearBottomRef = React.useRef(true);
-  React.useLayoutEffect(() => {
+  // Auto-follow the bottom of the conversation. We're "following" when the
+  // viewport is within 200px of the bottom; once the user scrolls further
+  // up to read history we stop following so we don't yank their position.
+  // Using a ref (not state) keeps the ResizeObserver below from rebuilding
+  // on every scroll.
+  const followBottomRef = React.useRef(true);
+
+  const scrollToBottom = React.useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (wasNearBottomRef.current) el.scrollTop = el.scrollHeight;
-  }, [messages.length]);
+    el.scrollTop = el.scrollHeight;
+  }, []);
+
+  // Snap to bottom on the first load + whenever a new message arrives
+  // (length changes) while we're in follow mode.
+  React.useLayoutEffect(() => {
+    if (followBottomRef.current) scrollToBottom();
+  }, [messages.length, scrollToBottom]);
+
+  // Images / embeds / link previews can finish loading AFTER the layout
+  // effect runs — without this observer the message would push above the
+  // fold once it grows. Re-pin on any content size change while in follow
+  // mode so the newest message always stays visible.
+  React.useEffect(() => {
+    const inner = contentRef.current;
+    if (!inner) return;
+    const ro = new ResizeObserver(() => {
+      if (followBottomRef.current) scrollToBottom();
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [scrollToBottom]);
 
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    wasNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    // Loosened the threshold from 80→200px so a half-screen of "reading
+    // last few messages" still counts as following the conversation.
+    followBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
     // Pull older history when user reaches the top.
     if (el.scrollTop < 80 && query.hasNextPage && !query.isFetchingNextPage) {
       const prevHeight = el.scrollHeight;
@@ -140,36 +166,39 @@ export function MessageList({
       onScroll={onScroll}
       className="flex-1 overflow-y-auto px-6 py-4"
     >
-      {query.isFetchingNextPage ? (
-        <div className="py-2 text-center text-[12px] text-ink-3">Loading older messages…</div>
-      ) : null}
-      {messages.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-[14px] text-ink-3">
-          No messages yet. Say hello.
-        </div>
-      ) : (
-        <ul className="space-y-1">
-          {messages.map((m, i) => {
-            const prev = messages[i - 1];
-            const sameAuthor =
-              prev && prev.author.id === m.author.id && !prev.deletedAt && !m.deletedAt;
-            const closeInTime =
-              prev &&
-              new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60 * 1000;
-            return (
-              <div key={m.id} id={`chat-msg-${m.id}`}>
-                <MessageItem
-                  message={m}
-                  grouped={Boolean(sameAuthor && closeInTime)}
-                  currentUserId={currentUserId}
-                  isManager={isManager}
-                  onReply={onReply}
-                />
-              </div>
-            );
-          })}
-        </ul>
-      )}
+      <div ref={contentRef}>
+        {query.isFetchingNextPage ? (
+          <div className="py-2 text-center text-[12px] text-ink-3">Loading older messages…</div>
+        ) : null}
+        {messages.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-[14px] text-ink-3">
+            No messages yet. Say hello.
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {messages.map((m, i) => {
+              const prev = messages[i - 1];
+              const sameAuthor =
+                prev && prev.author.id === m.author.id && !prev.deletedAt && !m.deletedAt;
+              const closeInTime =
+                prev &&
+                new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <
+                  5 * 60 * 1000;
+              return (
+                <div key={m.id} id={`chat-msg-${m.id}`}>
+                  <MessageItem
+                    message={m}
+                    grouped={Boolean(sameAuthor && closeInTime)}
+                    currentUserId={currentUserId}
+                    isManager={isManager}
+                    onReply={onReply}
+                  />
+                </div>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
