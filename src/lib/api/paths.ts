@@ -150,6 +150,41 @@ export const apiPaths = {
         `/projects/${slug}/task-lists/${listId}/unarchive`,
       reorderTabs: (slug: string, listId: string) =>
         `/projects/${slug}/task-lists/${listId}/tabs/reorder`,
+      statuses: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/statuses`,
     },
+    tasks: {
+      list: (
+        slug: string,
+        listId: string,
+        filters: {
+          statusId?: string;
+          assigneeId?: string;
+          q?: string;
+          includeArchived?: boolean;
+        } = {},
+      ) => {
+        const params = new URLSearchParams();
+        if (filters.statusId) params.set('statusId', filters.statusId);
+        if (filters.assigneeId) params.set('assigneeId', filters.assigneeId);
+        if (filters.q) params.set('q', filters.q);
+        if (filters.includeArchived) params.set('includeArchived', 'true');
+        const qs = params.toString();
+        return `/projects/${slug}/task-lists/${listId}/tasks${qs ? `?${qs}` : ''}`;
+      },
+      create: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tasks`,
+      one: (slug: string, taskId: string) => `/projects/${slug}/tasks/${taskId}`,
+      byKey: (slug: string, key: string) =>
+        `/projects/${slug}/tasks/key/${encodeURIComponent(key)}`,
+      move: (slug: string, taskId: string) => `/projects/${slug}/tasks/${taskId}/position`,
+      archive: (slug: string, taskId: string) => `/projects/${slug}/tasks/${taskId}/archive`,
+      unarchive: (slug: string, taskId: string) =>
+        `/projects/${slug}/tasks/${taskId}/unarchive`,
+    },
+    /// Reuses the chat module's members endpoint for the assignee picker.
+    /// Returns the same {id, name, avatarUrl} shape we need.
+    members: (slug: string, q?: string) =>
+      `/projects/${slug}/chat/members${q ? `?q=${encodeURIComponent(q)}` : ''}`,
   },
 };

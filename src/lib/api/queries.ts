@@ -41,6 +41,10 @@ export const queryKeys = {
   pmo: {
     lists: (slug: string) => ['pmo', 'lists', slug] as const,
     list: (slug: string, listId: string) => ['pmo', 'list', slug, listId] as const,
+    tasks: (slug: string, listId: string, filters?: Record<string, unknown>) =>
+      ['pmo', 'tasks', slug, listId, filters ?? {}] as const,
+    task: (slug: string, taskId: string) => ['pmo', 'task', slug, taskId] as const,
+    members: (slug: string, q?: string) => ['pmo', 'members', slug, q ?? ''] as const,
   },
 } as const;
 
