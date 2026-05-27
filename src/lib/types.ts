@@ -547,4 +547,54 @@ export const TASK_LIST_TAB_PATH: Record<Exclude<TaskListTabKind, 'EMBED'>, strin
  */
 export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskListTabKind>([
   'OVERVIEW',
+  'LIST',
 ]);
+
+export interface TaskAssigneeUser {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+export interface TaskAssignee {
+  id: string;
+  taskId: string;
+  userId: string;
+  assignedAt: string;
+  user: TaskAssigneeUser;
+}
+
+export interface Task {
+  id: string;
+  taskListId: string;
+  projectId: string;
+  key: string;
+  title: string;
+  /// Tiptap JSON document.
+  description: Record<string, unknown>;
+  statusId: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  storyPoints: number | null;
+  startDate: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  /// Stringified Decimal from Prisma. Compare via Number().
+  positionInStatus: string;
+  createdById: string;
+  archivedAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  assignees: TaskAssignee[];
+}
+
+export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
+  NONE: 'No priority',
+  LOW: 'Low',
+  MEDIUM: 'Medium',
+  HIGH: 'High',
+  URGENT: 'Urgent',
+};
+
+export const TASK_PRIORITY_ORDER: TaskPriority[] = ['NONE', 'LOW', 'MEDIUM', 'HIGH', 'URGENT'];
