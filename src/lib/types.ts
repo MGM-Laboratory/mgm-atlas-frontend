@@ -437,3 +437,114 @@ export const BRAND_FOR_PHASE: Record<ProjectPhase, 'blue' | 'yellow' | 'red' | '
   SHIPPED: 'green',
   ARCHIVED: 'neutral',
 };
+
+// ─── PMO (project management office) ────────────────────────────────────────
+
+export type PmoBrandColor = 'blue' | 'yellow' | 'red' | 'green' | 'neutral';
+
+export type TaskStatusCategory = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+
+export type TaskPriority = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export type TaskListTabKind =
+  | 'OVERVIEW'
+  | 'LIST'
+  | 'KANBAN'
+  | 'GANTT'
+  | 'TEAM'
+  | 'FILES'
+  | 'NOTES'
+  | 'WHITEBOARDS'
+  | 'EMBED';
+
+export interface TaskStatus {
+  id: string;
+  taskListId: string;
+  name: string;
+  color: string;
+  category: TaskStatusCategory;
+  order: number;
+  isDefault: boolean;
+}
+
+export interface TaskListTab {
+  id: string;
+  taskListId: string;
+  kind: TaskListTabKind;
+  label: string | null;
+  iconName: string | null;
+  url: string | null;
+  embedPreset: string | null;
+  order: number;
+  hidden: boolean;
+  createdAt: string;
+}
+
+export interface TaskList {
+  id: string;
+  projectId: string;
+  name: string;
+  iconName: string;
+  iconColor: PmoBrandColor;
+  order: number;
+  contributorsCanCreateTasks: boolean;
+  projectKey: string | null;
+  taskCounter: number;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  statuses: TaskStatus[];
+  tabs: TaskListTab[];
+  _count?: { tasks: number };
+}
+
+/** Default left-to-right order of the built-in tabs as the backend seeds them. */
+export const TASK_LIST_TAB_KIND_ORDER: TaskListTabKind[] = [
+  'OVERVIEW',
+  'LIST',
+  'KANBAN',
+  'GANTT',
+  'TEAM',
+  'FILES',
+  'NOTES',
+  'WHITEBOARDS',
+];
+
+export const TASK_LIST_TAB_LABEL: Record<TaskListTabKind, string> = {
+  OVERVIEW: 'Overview',
+  LIST: 'List',
+  KANBAN: 'Kanban',
+  GANTT: 'Timeline',
+  TEAM: 'Team',
+  FILES: 'Files',
+  NOTES: 'Notes',
+  WHITEBOARDS: 'Whiteboards',
+  EMBED: 'Embed',
+};
+
+/**
+ * URL path segment per built-in tab kind, appended to
+ * `/projects/[slug]/lists/[listId]`. EMBED tabs use their own id.
+ */
+export const TASK_LIST_TAB_PATH: Record<Exclude<TaskListTabKind, 'EMBED'>, string> = {
+  OVERVIEW: '',
+  LIST: '/list',
+  KANBAN: '/kanban',
+  GANTT: '/timeline',
+  TEAM: '/team',
+  FILES: '/files',
+  NOTES: '/notes',
+  WHITEBOARDS: '/whiteboards',
+};
+
+/**
+ * Which built-in tab kinds are wired up in the frontend right now. Tabs not
+ * in this set still render in the navbar (so users can see the future
+ * shape) but are disabled with a tooltip until their phase ships.
+ *
+ * Update this set as each phase lands.
+ */
+export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskListTabKind>([
+  'OVERVIEW',
+]);

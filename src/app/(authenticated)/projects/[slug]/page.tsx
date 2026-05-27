@@ -26,6 +26,7 @@ import { PhaseBadge } from '@/components/projects/project-thumbnail';
 import { ContributeModal } from '@/components/projects/contribute-modal';
 import { BookmarkButton } from '@/components/projects/bookmark-button';
 import { RichTextEditor } from '@/components/rich-text/editor';
+import { TaskListsSidebar } from '@/components/pmo/task-lists-sidebar';
 import { PROJECT_PHASE_LABEL } from '@/lib/types';
 
 export default function ProjectDetailPage() {
@@ -215,6 +216,8 @@ export default function ProjectDetailPage() {
                     <span className="text-[13px] text-ink-3">No links yet.</span>
                   )}
                 </Section>
+
+                <TaskListsSidebar projectSlug={project.slug} canManage={project.access.isManager} />
 
                 <Section title={`Members (${insider.members.length})`}>
                   <ul className="space-y-2">

@@ -38,6 +38,10 @@ export const queryKeys = {
     pins: (channelId: string) => ['chat', 'pins', channelId] as const,
     channelState: (channelId: string) => ['chat', 'channel-state', channelId] as const,
   },
+  pmo: {
+    lists: (slug: string) => ['pmo', 'lists', slug] as const,
+    list: (slug: string, listId: string) => ['pmo', 'list', slug, listId] as const,
+  },
 } as const;
 
 export type ProjectListFilters = {
