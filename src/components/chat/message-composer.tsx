@@ -296,9 +296,26 @@ export function MessageComposer({
     });
   };
 
+  // GIFs auto-send the moment they're picked — Slack/Discord pattern. We
+  // don't touch the in-progress draft so the user doesn't lose typed text.
+  const sendGifMutation = useMutation({
+    mutationFn: (gif: ChatGif) =>
+      api(apiPaths.chat.messages(projectSlug, channelId), {
+        method: 'POST',
+        body: {
+          markdown: gif.gifUrl,
+          replyToId: replyTo?.id,
+          clientMessageId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        },
+      }),
+    onSuccess: () => {
+      onClearReply();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.messages(channelId) });
+    },
+  });
+
   const onGifPick = (gif: ChatGif) => {
-    // GIF URLs render as inline images via embed-renderer's detection.
-    insertAtCaret((draft ? '\n' : '') + gif.gifUrl + '\n');
+    sendGifMutation.mutate(gif);
   };
 
   /**
@@ -405,6 +422,9 @@ export function MessageComposer({
           onEmojiPick={(emoji) => insertAtCaret(emoji)}
           onGifPick={onGifPick}
           onStickerPick={onStickerPick}
+          // Hand focus back to the textarea on close so a subsequent Enter
+          // sends the message instead of reopening this picker.
+          onAfterClose={() => textareaRef.current?.focus()}
         />
         <div className="relative flex-1">
           <MentionSuggest

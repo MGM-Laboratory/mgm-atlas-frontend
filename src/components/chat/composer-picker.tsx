@@ -22,6 +22,11 @@ interface Props {
   onGifPick: (gif: ChatGif) => void;
   /** Called when the user picks a sticker — attaches it as an inline image. */
   onStickerPick: (sticker: Sticker) => void;
+  /** Called whenever the popover closes (either by selection or outside
+   *  click). The composer wires this to refocus the textarea so a
+   *  subsequent Enter sends the message instead of reopening this picker
+   *  (Radix's default close-auto-focus returns focus to the trigger). */
+  onAfterClose?: () => void;
 }
 
 /**
@@ -31,10 +36,16 @@ interface Props {
  * the GIF tab is disabled (TENOR_API_KEY unset on the server), the
  * tab still renders but says so plainly.
  */
-export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick }: Props) {
+export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick, onAfterClose }: Props) {
   const [open, setOpen] = React.useState(false);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) onAfterClose?.();
+      }}
+    >
       <PopoverTrigger asChild>
         <Button size="icon-sm" variant="ghost" aria-label="Emoji, GIF, sticker">
           <Smile className="h-4 w-4" strokeWidth={2.25} />
@@ -50,6 +61,11 @@ export function ComposerPicker({ onEmojiPick, onGifPick, onStickerPick }: Props)
         sideOffset={8}
         collisionPadding={16}
         avoidCollisions
+        // Skip Radix's "return focus to the trigger button" behaviour —
+        // otherwise pressing Enter immediately after closing the picker
+        // reopens it instead of sending the typed message. The composer
+        // takes care of focusing the textarea via `onAfterClose`.
+        onCloseAutoFocus={(e) => e.preventDefault()}
         className="w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden p-0"
       >
         <Tabs defaultValue="emoji" className="flex flex-col">
