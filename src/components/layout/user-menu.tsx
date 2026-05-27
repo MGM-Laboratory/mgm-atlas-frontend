@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogOut, Settings, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { clearSession, getStoredSession } from '@/lib/auth-client';
+import { api } from '@/lib/api/client';
 import { Avatar } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -24,7 +25,12 @@ export function UserMenu({ isAdmin }: Props) {
   const user = session?.user;
   const accountUrl = process.env.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await api('/auth/logout', { method: 'DELETE' });
+    } catch {
+      // Even if the API call fails (network/expired session), clear locally.
+    }
     clearSession();
     router.push('/login');
   };

@@ -39,10 +39,35 @@ export function ProjectCard({ project, width, static: isStatic = false, classNam
       setHovered(true);
     }, 220);
   };
-  const onLeave = () => {
+  const onLeave = React.useCallback(() => {
     if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
     setHovered(false);
-  };
+  }, []);
+
+  // The overlay is fixed-positioned to the card's location at hover time. Once
+  // the user scrolls, the card slides away under it and the cursor is still
+  // sitting on the (now orphaned) overlay, so neither mouseleave ever fires.
+  // Dismiss once the card has drifted past a small threshold — preserves the
+  // "stay open while still" feel and ignores accidental trackpad jitter.
+  React.useEffect(() => {
+    if (!hovered) return;
+    const initial = ref.current?.getBoundingClientRect();
+    if (!initial) return;
+    const DISMISS_PX = 40;
+    const onScroll = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+      if (
+        Math.abs(rect.left - initial.left) > DISMISS_PX ||
+        Math.abs(rect.top - initial.top) > DISMISS_PX
+      ) {
+        onLeave();
+      }
+    };
+    // capture:true so we also catch scroll-row (horizontal) scrolling.
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [hovered, onLeave]);
 
   return (
     <div

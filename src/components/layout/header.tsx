@@ -7,6 +7,7 @@ import { Plus } from 'lucide-react';
 import { Wordmark } from '@/components/brand/wordmark';
 import { ShapeSignature } from '@/components/brand/shape-signature';
 import { Button } from '@/components/ui/button';
+import { ChatNavButton } from '@/components/chat/chat-nav-button';
 import { NotificationBell } from './notification-bell';
 import { UserMenu } from './user-menu';
 import { cn } from '@/lib/utils';
@@ -82,6 +83,7 @@ export function Header({ user }: { user?: SessionUser | null }) {
               <Plus className="h-4 w-4" strokeWidth={2.25} />
             </Link>
           </Button>
+          {user ? <ChatNavButton /> : null}
           {user ? <NotificationBell /> : null}
           {user ? <UserMenu isAdmin={user.isAdmin} /> : null}
         </div>

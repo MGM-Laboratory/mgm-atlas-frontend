@@ -1,5 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractUserFromIdToken } from '@/lib/auth-client';
+
+interface KeycloakIdTokenClaims {
+  sub?: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+  preferred_username?: string;
+  given_name?: string;
+  family_name?: string;
+}
+
+function decodeJwtPayload<T = Record<string, unknown>>(token: string): T | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8')) as T;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -9,11 +30,10 @@ export async function GET(request: NextRequest) {
   const callbackUrl = searchParams.get('callback_url') || '/dashboard';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-  // Helper to construct redirect URLs using the configured app URL
   const createRedirectUrl = (path: string, errorCode?: string) => {
     if (!appUrl) {
       console.error('Missing NEXT_PUBLIC_APP_URL');
-      return new URL('/login', request.url); // Fallback
+      return new URL('/login', request.url);
     }
     const url = new URL(path, appUrl);
     if (errorCode) {
@@ -22,7 +42,6 @@ export async function GET(request: NextRequest) {
     return url;
   };
 
-  // Handle Keycloak errors
   if (error) {
     return NextResponse.redirect(createRedirectUrl('/login', error));
   }
@@ -37,7 +56,6 @@ export async function GET(request: NextRequest) {
     const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET;
     const redirectUri = `${appUrl}/api/auth/callback`;
 
-    // Exchange authorization code for tokens
     const tokenResponse = await fetch(
       `${keycloakIssuer}/protocol/openid-connect/token`,
       {
@@ -55,8 +73,12 @@ export async function GET(request: NextRequest) {
     );
 
     if (!tokenResponse.ok) {
-      console.error('Token exchange failed:', await tokenResponse.text());
-      return NextResponse.redirect(createRedirectUrl('/login', 'token_exchange_failed'));
+      const detail = await tokenResponse.text();
+      console.error('Token exchange failed:', detail);
+      const url = createRedirectUrl('/login', 'token_exchange_failed');
+      url.searchParams.set('error_status', String(tokenResponse.status));
+      url.searchParams.set('error_detail', detail.slice(0, 240));
+      return NextResponse.redirect(url);
     }
 
     const tokenData = (await tokenResponse.json()) as {
@@ -66,36 +88,68 @@ export async function GET(request: NextRequest) {
       expires_in?: number;
     };
 
-    // Extract user info from ID token
-    const userInfo = tokenData.id_token
-      ? extractUserFromIdToken(tokenData.id_token)
-      : null;
-
-    if (!userInfo) {
-      return NextResponse.redirect(createRedirectUrl('/login', 'invalid_id_token'));
-    }
-
-    // Call backend to create a session
     const backendUrl = process.env.NEXT_PUBLIC_API_URL;
-    
     if (!backendUrl) {
       console.error('Missing NEXT_PUBLIC_API_URL environment variable');
       return NextResponse.redirect(createRedirectUrl('/login', 'missing_api_url'));
     }
 
-    console.log('Calling backend session creation:', {
-      url: `${backendUrl}/auth/login`,
-      userInfo,
-    });
+    // The backend's /auth/login endpoint requires the user's identity claims
+    // up-front (it doesn't validate the access token via JWKS — it trusts that
+    // we just exchanged the code at Keycloak). Pull claims from the ID token,
+    // and fall back to /userinfo if the ID token is absent or empty.
+    let claims: KeycloakIdTokenClaims = tokenData.id_token
+      ? decodeJwtPayload<KeycloakIdTokenClaims>(tokenData.id_token) ?? {}
+      : {};
 
-    const sessionResponse = await fetch(`${backendUrl}/auth/login`, {
+    if (!claims.email || !claims.sub) {
+      try {
+        const userinfoRes = await fetch(
+          `${keycloakIssuer}/protocol/openid-connect/userinfo`,
+          {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            cache: 'no-store',
+          },
+        );
+        if (userinfoRes.ok) {
+          const ui = (await userinfoRes.json()) as KeycloakIdTokenClaims;
+          claims = { ...ui, ...claims };
+        } else {
+          console.warn(
+            'Keycloak userinfo lookup failed:',
+            userinfoRes.status,
+            userinfoRes.statusText,
+          );
+        }
+      } catch (err) {
+        console.warn('Keycloak userinfo request errored:', err);
+      }
+    }
+
+    if (!claims.sub || !claims.email) {
+      const url = createRedirectUrl('/login', 'missing_identity_claims');
+      url.searchParams.set(
+        'error_detail',
+        'The Keycloak ID token and userinfo response are both missing the sub or email claim. Enable the email/profile mappers on the atlas-web client.',
+      );
+      return NextResponse.redirect(url);
+    }
+
+    const fullName = [claims.given_name, claims.family_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const displayName =
+      claims.name || fullName || claims.preferred_username || claims.email;
+
+    const loginResponse = await fetch(`${backendUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        keycloakId: userInfo.keycloakId,
-        email: userInfo.email,
-        name: userInfo.name,
-        picture: userInfo.picture,
+        keycloakId: claims.sub,
+        email: claims.email,
+        name: displayName,
+        picture: claims.picture,
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
         idToken: tokenData.id_token,
@@ -103,16 +157,20 @@ export async function GET(request: NextRequest) {
       cache: 'no-store',
     });
 
-    if (!sessionResponse.ok) {
-      const errorText = await sessionResponse.text();
+    if (!loginResponse.ok) {
+      const errorText = await loginResponse.text();
       console.error('Session creation failed:', {
-        status: sessionResponse.status,
+        status: loginResponse.status,
+        url: `${backendUrl}/auth/login`,
         error: errorText,
       });
-      return NextResponse.redirect(createRedirectUrl('/login', 'session_creation_failed'));
+      const url = createRedirectUrl('/login', 'session_creation_failed');
+      url.searchParams.set('error_status', String(loginResponse.status));
+      url.searchParams.set('error_detail', errorText.slice(0, 240));
+      return NextResponse.redirect(url);
     }
 
-    const sessionData = (await sessionResponse.json()) as {
+    const loginData = (await loginResponse.json()) as {
       sessionId: string;
       expiresAt: string;
       user: {
@@ -125,11 +183,14 @@ export async function GET(request: NextRequest) {
       };
     };
 
-    // Redirect to root page with session data
-    // The root page's useAuthCallback hook will extract and store in localStorage
+    const sessionData = {
+      sessionId: loginData.sessionId,
+      expiresAt: loginData.expiresAt,
+      user: loginData.user,
+    };
+
     const redirectUrl = new URL('/', appUrl);
     redirectUrl.searchParams.set('session', JSON.stringify(sessionData));
-    // Preserve callback URL for final redirect
     if (callbackUrl !== '/dashboard') {
       redirectUrl.searchParams.set('callback_url', callbackUrl);
     }

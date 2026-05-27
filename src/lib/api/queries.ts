@@ -31,6 +31,12 @@ export const queryKeys = {
   collaborationRoles: ['admin', 'collaboration-roles'] as const,
   users: (search?: string) => ['users', search ?? ''] as const,
   featured: ['featured'] as const,
+  chat: {
+    myProjects: ['chat', 'me', 'projects'] as const,
+    channels: (projectSlugOrId: string) => ['chat', 'channels', projectSlugOrId] as const,
+    messages: (channelId: string) => ['chat', 'messages', channelId] as const,
+    pins: (channelId: string) => ['chat', 'pins', channelId] as const,
+  },
 } as const;
 
 export type ProjectListFilters = {
