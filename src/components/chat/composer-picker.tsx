@@ -143,34 +143,55 @@ function GifTab({ onPick }: { onPick: (gif: ChatGif) => void }) {
         placeholder="Search GIFs"
         className="rounded border border-line bg-white px-2 py-1.5 text-[13px] outline-none focus:border-line-strong"
       />
-      <div className="grid flex-1 grid-cols-2 gap-1.5 overflow-y-auto pr-1">
-        {gifs.map((g) => (
-          <button
-            key={g.id}
-            type="button"
-            onClick={() => onPick(g)}
-            className="overflow-hidden rounded border border-line hover:border-brand-blue/50"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={g.previewUrl} alt={g.title} loading="lazy" className="block h-full w-full object-cover" />
-          </button>
-        ))}
-        {search.isLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={`s-${i}`} className="h-20 animate-pulse rounded bg-line/40" />
-            ))
-          : null}
+      {/* Masonry: CSS columns lets each GIF keep its natural aspect ratio
+          and the scrollable parent grows downward as more pages load,
+          instead of the old grid squishing every cell to a fixed row. */}
+      <div className="flex-1 overflow-y-auto pr-1">
+        <div className="columns-2 gap-1.5 [column-fill:_balance]">
+          {gifs.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => onPick(g)}
+              title={g.title}
+              className="mb-1.5 block w-full break-inside-avoid overflow-hidden rounded border border-line transition-colors hover:border-brand-blue/50"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={g.previewUrl}
+                alt={g.title}
+                loading="lazy"
+                className="block w-full"
+                style={
+                  g.width && g.height
+                    ? { aspectRatio: `${g.width} / ${g.height}` }
+                    : undefined
+                }
+              />
+            </button>
+          ))}
+          {search.isLoading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={`s-${i}`}
+                  className="mb-1.5 h-24 break-inside-avoid animate-pulse rounded bg-line/40"
+                />
+              ))
+            : null}
+        </div>
+        {search.hasNextPage ? (
+          <div className="mt-2 flex justify-center pb-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void search.fetchNextPage()}
+              loading={search.isFetchingNextPage}
+            >
+              Load more
+            </Button>
+          </div>
+        ) : null}
       </div>
-      {search.hasNextPage ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => void search.fetchNextPage()}
-          loading={search.isFetchingNextPage}
-        >
-          More
-        </Button>
-      ) : null}
     </div>
   );
 }
