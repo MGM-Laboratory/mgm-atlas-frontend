@@ -336,7 +336,7 @@ export interface ChatGif {
 }
 
 export interface ChatGifSearchResult {
-  provider: 'tenor';
+  provider: 'tenor' | 'giphy';
   results: ChatGif[];
   next: string | null;
 }
