@@ -50,6 +50,8 @@ jobs:
             NEXT_PUBLIC_KEYCLOAK_ISSUER=${{ vars.NEXT_PUBLIC_KEYCLOAK_ISSUER }}
             NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=${{ vars.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID }}
             NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL=${{ vars.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL }}
+            NEXT_PUBLIC_PMO_ENABLED=${{ vars.NEXT_PUBLIC_PMO_ENABLED }}
+            NEXT_PUBLIC_YJS_WS_URL=${{ vars.NEXT_PUBLIC_YJS_WS_URL }}
           tags: |
             ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:latest
             ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:latest-${{ steps.meta.outputs.ts }}
