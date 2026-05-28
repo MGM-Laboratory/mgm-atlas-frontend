@@ -659,6 +659,37 @@ export interface PaginatedActivity {
   pageSize: number;
 }
 
+export type TaskDependencyKind =
+  | 'FINISH_TO_START'
+  | 'START_TO_START'
+  | 'FINISH_TO_FINISH'
+  | 'START_TO_FINISH';
+
+export interface GanttTaskRow {
+  id: string;
+  key: string;
+  title: string;
+  statusId: string;
+  statusName: string;
+  statusCategory: TaskStatusCategory;
+  startDate: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  assignees: TaskAssigneeUser[];
+}
+
+export interface GanttDependency {
+  id: string;
+  fromTaskId: string;
+  toTaskId: string;
+  kind: TaskDependencyKind;
+}
+
+export interface GanttPayload {
+  tasks: GanttTaskRow[];
+  dependencies: GanttDependency[];
+}
+
 export type MentionSuggestionKind = 'user' | 'task';
 
 export interface MentionSuggestion {
