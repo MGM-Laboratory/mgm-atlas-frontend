@@ -205,5 +205,11 @@ export const apiPaths = {
     },
     activity: (slug: string, taskId: string) =>
       `/projects/${slug}/tasks/${taskId}/activity`,
+    gantt: (slug: string, listId: string) =>
+      `/projects/${slug}/task-lists/${listId}/gantt`,
+    addDependency: (slug: string, fromTaskId: string) =>
+      `/projects/${slug}/tasks/${fromTaskId}/dependencies`,
+    removeDependency: (slug: string, fromTaskId: string, depId: string) =>
+      `/projects/${slug}/tasks/${fromTaskId}/dependencies/${depId}`,
   },
 };

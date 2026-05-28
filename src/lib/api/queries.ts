@@ -50,6 +50,7 @@ export const queryKeys = {
     activity: (slug: string, taskId: string) => ['pmo', 'activity', slug, taskId] as const,
     mentionSearch: (slug: string, kind: 'user' | 'task', q: string) =>
       ['pmo', 'mention-search', slug, kind, q] as const,
+    gantt: (slug: string, listId: string) => ['pmo', 'gantt', slug, listId] as const,
   },
 } as const;
 
