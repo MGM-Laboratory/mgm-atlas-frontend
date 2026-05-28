@@ -548,6 +548,7 @@ export const TASK_LIST_TAB_PATH: Record<Exclude<TaskListTabKind, 'EMBED'>, strin
 export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskListTabKind>([
   'OVERVIEW',
   'LIST',
+  'KANBAN',
 ]);
 
 export interface TaskAssigneeUser {
