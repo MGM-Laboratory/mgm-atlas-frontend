@@ -46,7 +46,15 @@ ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
 # the matching GH Actions variable.
 ENV NEXT_PUBLIC_PMO_ENABLED=$NEXT_PUBLIC_PMO_ENABLED
 ENV NEXT_PUBLIC_YJS_WS_URL=$NEXT_PUBLIC_YJS_WS_URL
-RUN pnpm build
+# Echo the public env values into the RUN command so BuildKit hashes them
+# into the layer cache key. Without this, `cache-from type=gha` happily
+# reuses a previous `pnpm build` output even after ARG/ENV values change
+# — which is why the PMO_ENABLED rollout didn't take effect despite the
+# workflow and Dockerfile both passing the flag correctly. The echo
+# output is throwaway; the command *string* carrying the values is what
+# busts the cache.
+RUN echo "build inputs: app=$NEXT_PUBLIC_APP_URL api=$NEXT_PUBLIC_API_URL kc=$NEXT_PUBLIC_KEYCLOAK_ISSUER pmo=$NEXT_PUBLIC_PMO_ENABLED yjs=$NEXT_PUBLIC_YJS_WS_URL" \
+ && pnpm build
 
 # ─── Runtime ───────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runtime
