@@ -28,6 +28,8 @@ ARG NEXT_PUBLIC_KEYCLOAK_ISSUER
 ARG NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
 ARG NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL
 ARG NEXT_PUBLIC_SOCKET_URL
+ARG NEXT_PUBLIC_PMO_ENABLED
+ARG NEXT_PUBLIC_YJS_WS_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_KEYCLOAK_ISSUER=$NEXT_PUBLIC_KEYCLOAK_ISSUER
@@ -38,6 +40,12 @@ ENV NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL=$NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL
 # src/lib/realtime/socket.ts. So the build still works on existing CI
 # pipelines without changes.
 ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
+# PMO kill switch (Phase 0+). When unset at build time, usePmoEnabled()
+# returns false and the whole PMO UI stays dark. The corresponding
+# build-arg lives in the production / staging workflows and is fed by
+# the matching GH Actions variable.
+ENV NEXT_PUBLIC_PMO_ENABLED=$NEXT_PUBLIC_PMO_ENABLED
+ENV NEXT_PUBLIC_YJS_WS_URL=$NEXT_PUBLIC_YJS_WS_URL
 RUN pnpm build
 
 # ─── Runtime ───────────────────────────────────────────────────────────────
