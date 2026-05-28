@@ -549,6 +549,8 @@ export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskL
   'OVERVIEW',
   'LIST',
   'KANBAN',
+  'GANTT',
+  'TEAM',
 ]);
 
 export interface TaskAssigneeUser {
@@ -700,4 +702,29 @@ export interface MentionSuggestion {
   avatarUrl?: string | null;
   iconName?: string | null;
   iconColor?: string | null;
+}
+
+// ─── Team (Phase 6) ─────────────────────────────────────────────────────────
+
+export interface TeamMember {
+  id: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string | null;
+    bio: string | null;
+  };
+  role: ProjectRole;
+  /// Free-form collaboration role title (e.g. "Frontend Engineer").
+  title: string | null;
+  joinedAt: string;
+  /// Project-wide count of non-deleted, non-archived assigned tasks.
+  taskCount: number;
+  isOwner: boolean;
+}
+
+export interface TeamPayload {
+  managers: TeamMember[];
+  contributors: TeamMember[];
 }

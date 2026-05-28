@@ -211,5 +211,6 @@ export const apiPaths = {
       `/projects/${slug}/tasks/${fromTaskId}/dependencies`,
     removeDependency: (slug: string, fromTaskId: string, depId: string) =>
       `/projects/${slug}/tasks/${fromTaskId}/dependencies/${depId}`,
+    team: (slug: string) => `/projects/${slug}/pmo/team`,
   },
 };
