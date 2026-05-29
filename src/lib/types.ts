@@ -551,7 +551,41 @@ export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskL
   'KANBAN',
   'GANTT',
   'TEAM',
+  'FILES',
 ]);
+
+export interface ProjectFileUploader {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+/** A node in the project Files tree — either a folder or an uploaded file. */
+export interface ProjectFile {
+  id: string;
+  projectId: string;
+  parentFolderId: string | null;
+  name: string;
+  isFolder: boolean;
+  /// Null for folders.
+  url: string | null;
+  s3Key: string | null;
+  mime: string | null;
+  bytes: number | null;
+  uploadedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  uploadedBy: ProjectFileUploader | null;
+}
+
+export interface ProjectFilesResponse {
+  /// The folder being listed, or null for the project root.
+  folderId: string | null;
+  /// Root-to-current ancestor chain (excludes the root itself).
+  breadcrumb: { id: string; name: string }[];
+  items: ProjectFile[];
+}
 
 export interface TaskAssigneeUser {
   id: string;
