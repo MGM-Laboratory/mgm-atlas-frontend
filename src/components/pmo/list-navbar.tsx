@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Reorder, useDragControls } from 'framer-motion';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Plus, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/toast';
 import { LucideIcon } from './lucide-icon';
+import { AddTabDialog } from './add-tab-dialog';
 
 export function ListNavbar({
   projectSlug,
@@ -39,6 +40,7 @@ export function ListNavbar({
   }, [list.tabs]);
 
   const visibleTabs = tabs.filter((t) => !t.hidden);
+  const [addOpen, setAddOpen] = React.useState(false);
 
   return (
     <div className="border-b border-line bg-surface">
@@ -60,7 +62,26 @@ export function ListNavbar({
             ))}
           </ul>
         )}
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="ml-1 inline-grid h-8 w-8 shrink-0 place-items-center rounded text-ink-3 hover:bg-surface-muted hover:text-ink"
+            aria-label="Add tab"
+            title="Add tab"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.25} />
+          </button>
+        ) : null}
       </div>
+      {canManage ? (
+        <AddTabDialog
+          projectSlug={projectSlug}
+          listId={list.id}
+          open={addOpen}
+          onOpenChange={setAddOpen}
+        />
+      ) : null}
     </div>
   );
 }
@@ -141,6 +162,22 @@ function ReorderableTab({
   onCommit: () => void;
 }) {
   const dragControls = useDragControls();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const del = useMutation({
+    mutationFn: () =>
+      api(apiPaths.pmo.lists.deleteTab(projectSlug, listId, tab.id), { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pmo.lists(projectSlug) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pmo.list(projectSlug, listId) });
+    },
+    onError: (err: unknown) =>
+      toast.show({
+        title: 'Could not remove tab',
+        description: err instanceof Error ? err.message : 'Error',
+        tone: 'danger',
+      }),
+  });
   return (
     <Reorder.Item
       value={tab}
@@ -163,6 +200,23 @@ function ReorderableTab({
         <GripVertical className="h-3.5 w-3.5" strokeWidth={2.25} />
       </button>
       <TabLink projectSlug={projectSlug} listId={listId} tab={tab} />
+      {tab.kind === 'EMBED' ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm(`Remove the “${tab.label}” tab?`)) del.mutate();
+          }}
+          className={cn(
+            'absolute -right-1 top-1/2 -translate-y-1/2 inline-grid h-5 w-5 place-items-center rounded',
+            'text-ink-4 opacity-0 transition-opacity duration-120 ease-out-soft',
+            'hover:bg-surface-muted hover:text-brand-red group-hover/tab:opacity-100',
+          )}
+          aria-label="Remove tab"
+          title="Remove tab"
+        >
+          <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+        </button>
+      ) : null}
     </Reorder.Item>
   );
 }
