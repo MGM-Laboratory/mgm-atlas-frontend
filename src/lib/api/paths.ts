@@ -212,5 +212,15 @@ export const apiPaths = {
     removeDependency: (slug: string, fromTaskId: string, depId: string) =>
       `/projects/${slug}/tasks/${fromTaskId}/dependencies/${depId}`,
     team: (slug: string) => `/projects/${slug}/pmo/team`,
+    files: {
+      list: (slug: string, folderId?: string) =>
+        `/projects/${slug}/files${folderId ? `?folderId=${folderId}` : ''}`,
+      presign: (slug: string) => `/projects/${slug}/files/presign`,
+      register: (slug: string) => `/projects/${slug}/files`,
+      createFolder: (slug: string) => `/projects/${slug}/files/folder`,
+      update: (slug: string, fileId: string) => `/projects/${slug}/files/${fileId}`,
+      remove: (slug: string, fileId: string, force?: boolean) =>
+        `/projects/${slug}/files/${fileId}${force ? '?force=1' : ''}`,
+    },
   },
 };

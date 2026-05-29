@@ -52,6 +52,8 @@ export const queryKeys = {
       ['pmo', 'mention-search', slug, kind, q] as const,
     gantt: (slug: string, listId: string) => ['pmo', 'gantt', slug, listId] as const,
     team: (slug: string) => ['pmo', 'team', slug] as const,
+    files: (slug: string, folderId: string | null) =>
+      ['pmo', 'files', slug, folderId ?? 'root'] as const,
   },
 } as const;
 
