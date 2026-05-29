@@ -552,7 +552,36 @@ export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskL
   'GANTT',
   'TEAM',
   'FILES',
+  'NOTES',
 ]);
+
+/** A node in the project Notes tree (metadata only — content lives in Yjs). */
+export interface ProjectNoteTreeItem {
+  id: string;
+  projectId: string;
+  parentNoteId: string | null;
+  title: string;
+  iconName: string | null;
+  order: number;
+  createdById: string;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Full note including the BlockNote JSON projection (SSR/preview/fallback). */
+export interface ProjectNote extends ProjectNoteTreeItem {
+  yDocKey: string;
+  contentSnapshot: unknown;
+  deletedAt: string | null;
+}
+
+/** Response of GET /projects/:slug/notes/:noteId/yjs-token. */
+export interface YjsTokenResponse {
+  token: string;
+  docKey: string;
+  wsUrl: string;
+}
 
 export interface ProjectFileUploader {
   id: string;
