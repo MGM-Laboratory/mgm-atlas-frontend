@@ -54,6 +54,8 @@ export const queryKeys = {
     team: (slug: string) => ['pmo', 'team', slug] as const,
     files: (slug: string, folderId: string | null) =>
       ['pmo', 'files', slug, folderId ?? 'root'] as const,
+    notes: (slug: string) => ['pmo', 'notes', slug] as const,
+    note: (slug: string, noteId: string) => ['pmo', 'note', slug, noteId] as const,
   },
 } as const;
 

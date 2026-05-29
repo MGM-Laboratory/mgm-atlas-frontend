@@ -222,5 +222,13 @@ export const apiPaths = {
       remove: (slug: string, fileId: string, force?: boolean) =>
         `/projects/${slug}/files/${fileId}${force ? '?force=1' : ''}`,
     },
+    notes: {
+      list: (slug: string) => `/projects/${slug}/notes`,
+      create: (slug: string) => `/projects/${slug}/notes`,
+      one: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
+      update: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
+      remove: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
+      yjsToken: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}/yjs-token`,
+    },
   },
 };
