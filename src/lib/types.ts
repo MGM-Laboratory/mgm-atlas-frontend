@@ -553,7 +553,27 @@ export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskL
   'TEAM',
   'FILES',
   'NOTES',
+  'WHITEBOARDS',
 ]);
+
+export interface WhiteboardListItem {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  createdById: string;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Full whiteboard incl. the Excalidraw scene projection (preview/export). */
+export interface Whiteboard extends WhiteboardListItem {
+  yDocKey: string;
+  sceneSnapshot: unknown;
+  deletedAt: string | null;
+}
 
 /** A node in the project Notes tree (metadata only — content lives in Yjs). */
 export interface ProjectNoteTreeItem {

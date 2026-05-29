@@ -230,5 +230,16 @@ export const apiPaths = {
       remove: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
       yjsToken: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}/yjs-token`,
     },
+    whiteboards: {
+      list: (slug: string) => `/projects/${slug}/whiteboards`,
+      create: (slug: string) => `/projects/${slug}/whiteboards`,
+      one: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}`,
+      update: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}`,
+      remove: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}`,
+      yjsToken: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}/yjs-token`,
+      exportMgm: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}/export`,
+      thumbnailPresign: (slug: string, wbId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/thumbnail/presign`,
+    },
   },
 };

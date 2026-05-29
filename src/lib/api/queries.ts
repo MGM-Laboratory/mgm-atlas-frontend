@@ -56,6 +56,8 @@ export const queryKeys = {
       ['pmo', 'files', slug, folderId ?? 'root'] as const,
     notes: (slug: string) => ['pmo', 'notes', slug] as const,
     note: (slug: string, noteId: string) => ['pmo', 'note', slug, noteId] as const,
+    whiteboards: (slug: string) => ['pmo', 'whiteboards', slug] as const,
+    whiteboard: (slug: string, wbId: string) => ['pmo', 'whiteboard', slug, wbId] as const,
   },
 } as const;
 
