@@ -150,6 +150,10 @@ export const apiPaths = {
         `/projects/${slug}/task-lists/${listId}/unarchive`,
       reorderTabs: (slug: string, listId: string) =>
         `/projects/${slug}/task-lists/${listId}/tabs/reorder`,
+      createTab: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tabs`,
+      deleteTab: (slug: string, listId: string, tabId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tabs/${tabId}`,
       statuses: (slug: string, listId: string) =>
         `/projects/${slug}/task-lists/${listId}/statuses`,
     },
