@@ -51,6 +51,7 @@ export const queryKeys = {
     mentionSearch: (slug: string, kind: 'user' | 'task', q: string) =>
       ['pmo', 'mention-search', slug, kind, q] as const,
     gantt: (slug: string, listId: string) => ['pmo', 'gantt', slug, listId] as const,
+    overview: (slug: string, listId: string) => ['pmo', 'overview', slug, listId] as const,
     team: (slug: string) => ['pmo', 'team', slug] as const,
     files: (slug: string, folderId: string | null) =>
       ['pmo', 'files', slug, folderId ?? 'root'] as const,
