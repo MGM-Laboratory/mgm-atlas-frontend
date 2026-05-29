@@ -27,6 +27,7 @@ import { ContributeModal } from '@/components/projects/contribute-modal';
 import { BookmarkButton } from '@/components/projects/bookmark-button';
 import { RichTextEditor } from '@/components/rich-text/editor';
 import { TaskListsSidebar } from '@/components/pmo/task-lists-sidebar';
+import { TaskListPicker } from '@/components/pmo/task-list-picker';
 import { isPmoEnabled } from '@/lib/hooks/use-pmo-enabled';
 import { PROJECT_PHASE_LABEL } from '@/lib/types';
 
@@ -122,12 +123,7 @@ export default function ProjectDetailPage() {
                 </Button>
               ) : null}
               {project.access.isInsider && isPmoEnabled() ? (
-                <Button asChild variant="secondary" size="lg">
-                  <Link href={`/projects/${project.slug}/lists` as never}>
-                    <KanbanSquare className="h-4 w-4" strokeWidth={2.25} />
-                    Task lists
-                  </Link>
-                </Button>
+                <TaskListPicker projectSlug={project.slug} />
               ) : null}
               {project.access.isInsider ? (
                 <Button asChild variant="secondary" size="lg">

@@ -207,6 +207,37 @@ export interface DashboardPayload {
   contributing: Array<Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'phase' | 'visibility' | 'thumbnailUrl' | 'thumbnailType'> & { archivedAt: string | null }>;
   pendingRequests: { id: string; role: string; message: string; createdAt: string; project: Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'thumbnailUrl' | 'thumbnailType'> }[];
   bookmarks: Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'phase' | 'thumbnailUrl' | 'thumbnailType'>[];
+  /// Top open PMO tasks assigned to me, soonest-due first. Absent/empty when PMO is off.
+  myOpenTasks?: MyOpenTask[];
+}
+
+export interface MyOpenTask {
+  id: string;
+  key: string;
+  title: string;
+  dueDate: string | null;
+  priority: TaskPriority;
+  status: { name: string; color: string; category: TaskStatusCategory };
+  taskList: { id: string; name: string };
+  project: { slug: string; title: string };
+}
+
+/// Overview-tab aggregate stats (GET …/task-lists/:listId/overview).
+export interface ListOverview {
+  byStatus: { statusId: string; name: string; color: string; category: TaskStatusCategory; count: number }[];
+  dueToday: number;
+  dueThisWeek: number;
+  overdue: number;
+  totalOpen: number;
+  workload: { userId: string; name: string; avatarUrl: string | null; count: number }[];
+  recentActivity: {
+    id: string;
+    kind: string;
+    payload: unknown;
+    createdAt: string;
+    taskId: string;
+    actor: { id: string; name: string; avatarUrl: string | null } | null;
+  }[];
 }
 
 // ─── Chat ──────────────────────────────────────────────────────────────
