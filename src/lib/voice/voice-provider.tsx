@@ -27,7 +27,11 @@ import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { isVoiceEnabled } from '@/lib/hooks/use-voice-enabled';
 import { getVoiceSocket } from '@/lib/realtime/socket';
-import type { VoiceJoinEnvelope } from './types';
+import type {
+  VoiceJoinEnvelope,
+  VoiceUserPreferences,
+  VoiceUserPreferencesPatch,
+} from './types';
 
 /**
  * Singleton LiveKit Room manager. Survives navigation; one Room at a
@@ -91,6 +95,10 @@ export interface VoiceState {
   devices: VoiceDeviceList;
   /** Which participant's tile is enlarged. Defaults to whoever is sharing screen. */
   spotlightIdentity: string | null;
+  /** True while the PTT key is held (only meaningful in PUSH_TO_TALK mode). */
+  pttActive: boolean;
+  /** Persisted prefs from the backend. null until first GET resolves. */
+  preferences: VoiceUserPreferences | null;
   ping: number | null;
   error: string | null;
 }
@@ -104,8 +112,13 @@ export interface VoiceActions {
   toggleDeafen: () => Promise<void>;
   switchMicDevice: (deviceId: string) => Promise<void>;
   switchCameraDevice: (deviceId: string) => Promise<void>;
+  switchOutputDevice: (deviceId: string) => Promise<void>;
   refreshDevices: () => Promise<void>;
   setSpotlight: (identity: string | null) => void;
+  /** Load (or reload) the user's preferences from the backend. */
+  loadPreferences: () => Promise<void>;
+  /** Persist a partial preferences update. Optimistic; rolls back on failure. */
+  updatePreferences: (patch: VoiceUserPreferencesPatch) => Promise<void>;
 }
 
 const VoiceContext = createContext<{ state: VoiceState; actions: VoiceActions } | null>(null);
@@ -124,6 +137,8 @@ const initialState: VoiceState = {
   cameraDeviceId: null,
   devices: { mics: [], cameras: [], outputs: [] },
   spotlightIdentity: null,
+  pttActive: false,
+  preferences: null,
   ping: null,
   error: null,
 };
@@ -300,11 +315,24 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const prefs = state.preferences;
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
         publishDefaults: {
           audioPreset: { maxBitrate: 64_000 }, // STANDARD-quality default
+        },
+        // Pull the audio cleanup toggles from the user's saved prefs.
+        // When prefs haven't loaded yet, fall back to all-on (matches
+        // the column defaults).
+        audioCaptureDefaults: {
+          autoGainControl: prefs?.autoGainControl ?? true,
+          echoCancellation: prefs?.echoCancellation ?? true,
+          noiseSuppression: prefs?.noiseSuppression ?? true,
+          deviceId: prefs?.micDeviceId ?? undefined,
+        },
+        videoCaptureDefaults: {
+          deviceId: prefs?.cameraDeviceId ?? undefined,
         },
       });
       roomRef.current = room;
@@ -340,7 +368,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
 
       try {
         await room.connect(envelope.url, envelope.token);
-        await room.localParticipant.setMicrophoneEnabled(true);
+        // VOICE_ACTIVITY: mic auto-opens at join.
+        // PUSH_TO_TALK: mic stays closed until the user holds the key.
+        const startWithMicOn = (prefs?.inputMode ?? 'VOICE_ACTIVITY') !== 'PUSH_TO_TALK';
+        await room.localParticipant.setMicrophoneEnabled(startWithMicOn);
       } catch (err) {
         roomRef.current = null;
         patch({
@@ -350,10 +381,13 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // micMuted reflects the actual mic state at join time. PTT mode
+      // starts muted; voice-activity mode starts open.
+      const startWithMicOn = (prefs?.inputMode ?? 'VOICE_ACTIVITY') !== 'PUSH_TO_TALK';
       patch({
         connectionState: 'connected',
         channelName: envelope.channel.name,
-        micMuted: false,
+        micMuted: !startWithMicOn,
       });
       refreshParticipants(room);
       void refreshDevices();
@@ -484,11 +518,74 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     [patch, refreshParticipants, state.screenSharing],
   );
 
+  // ─── Output device ──────────────────────────────────────────────────
+
+  const switchOutputDevice = useCallback<VoiceActions['switchOutputDevice']>(
+    async (deviceId) => {
+      const room = roomRef.current;
+      if (!room) return;
+      try {
+        await room.switchActiveDevice('audiooutput', deviceId);
+      } catch {
+        // Some browsers don't support output-device selection (Firefox).
+      }
+    },
+    [],
+  );
+
   // ─── Spotlight ──────────────────────────────────────────────────────
 
   const setSpotlight = useCallback<VoiceActions['setSpotlight']>((identity) => {
     setState((prev) => ({ ...prev, spotlightIdentity: identity }));
   }, []);
+
+  // ─── Preferences (backend-persisted) ────────────────────────────────
+
+  const loadPreferences = useCallback<VoiceActions['loadPreferences']>(async () => {
+    if (!enabled) return;
+    try {
+      const prefs = await api<VoiceUserPreferences>(apiPaths.voice.preferences());
+      setState((prev) => ({
+        ...prev,
+        preferences: prefs,
+        micDeviceId: prefs.micDeviceId,
+        cameraDeviceId: prefs.cameraDeviceId,
+      }));
+    } catch {
+      // Best-effort — settings dialog will show defaults until the
+      // backend is reachable.
+    }
+  }, [enabled]);
+
+  const updatePreferences = useCallback<VoiceActions['updatePreferences']>(
+    async (input) => {
+      const prev = state.preferences;
+      // Optimistic merge so the dialog UI feels instant.
+      if (prev) {
+        setState((s) => ({ ...s, preferences: { ...prev, ...input } as VoiceUserPreferences }));
+      }
+      try {
+        const next = await api<VoiceUserPreferences>(apiPaths.voice.preferences(), {
+          method: 'PATCH',
+          body: input,
+        });
+        setState((s) => ({ ...s, preferences: next }));
+      } catch (err) {
+        // Roll back optimistic change.
+        if (prev) setState((s) => ({ ...s, preferences: prev }));
+        // eslint-disable-next-line no-console
+        console.error('Failed to save voice preferences', err);
+      }
+    },
+    [state.preferences],
+  );
+
+  // Pull prefs once on mount when voice is enabled and the user is
+  // logged in (the api wrapper handles the auth check internally).
+  useEffect(() => {
+    if (!enabled) return;
+    void loadPreferences();
+  }, [enabled, loadPreferences]);
 
   // Disconnect cleanly on tab close.
   useEffect(() => {
@@ -499,6 +596,153 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [enabled, teardownRoom]);
+
+  // ─── Push-to-talk key handler ───────────────────────────────────────
+
+  useEffect(() => {
+    if (!enabled) return;
+    const prefs = state.preferences;
+    if (!prefs || prefs.inputMode !== 'PUSH_TO_TALK' || !prefs.pttKey) return;
+    if (state.connectionState !== 'connected' && state.connectionState !== 'reconnecting') {
+      return;
+    }
+    // Don't grab the key when the user is typing.
+    const isTypingTarget = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    };
+
+    let releaseTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const onDown = async (e: KeyboardEvent) => {
+      if (e.code !== prefs.pttKey || e.repeat || isTypingTarget(e)) return;
+      const room = roomRef.current;
+      if (!room) return;
+      if (releaseTimer) {
+        clearTimeout(releaseTimer);
+        releaseTimer = null;
+      }
+      // Don't unmute if user is deafened — deafen wins.
+      if (state.deafened) return;
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        setState((prev) => ({ ...prev, micMuted: false, pttActive: true }));
+      } catch {
+        // ignore — mic permission probably denied
+      }
+    };
+
+    const onUp = (e: KeyboardEvent) => {
+      if (e.code !== prefs.pttKey || isTypingTarget(e)) return;
+      const room = roomRef.current;
+      if (!room) return;
+      // Hold mic open for releaseMs so word endings aren't clipped.
+      if (releaseTimer) clearTimeout(releaseTimer);
+      releaseTimer = setTimeout(async () => {
+        releaseTimer = null;
+        try {
+          await room.localParticipant.setMicrophoneEnabled(false);
+          setState((prev) => ({ ...prev, micMuted: true, pttActive: false }));
+        } catch {
+          // ignore
+        }
+      }, prefs.pttReleaseMs);
+    };
+
+    document.addEventListener('keydown', onDown);
+    document.addEventListener('keyup', onUp);
+    return () => {
+      document.removeEventListener('keydown', onDown);
+      document.removeEventListener('keyup', onUp);
+      if (releaseTimer) clearTimeout(releaseTimer);
+    };
+  }, [enabled, state.preferences, state.connectionState, state.deafened]);
+
+  // ─── Global keyboard shortcuts ──────────────────────────────────────
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (state.connectionState !== 'connected' && state.connectionState !== 'reconnecting') {
+      return;
+    }
+    const prefs = state.preferences;
+
+    const parseCombo = (combo: string | null | undefined): {
+      key: string;
+      ctrl: boolean;
+      shift: boolean;
+      alt: boolean;
+      meta: boolean;
+    } | null => {
+      if (!combo) return null;
+      const parts = combo.toLowerCase().split('+').map((p) => p.trim());
+      const key = parts[parts.length - 1] ?? '';
+      return {
+        key,
+        ctrl: parts.includes('ctrl'),
+        shift: parts.includes('shift'),
+        alt: parts.includes('alt'),
+        meta: parts.includes('meta') || parts.includes('cmd'),
+      };
+    };
+
+    const muteCombo = parseCombo(prefs?.shortcutMute ?? 'ctrl+shift+m');
+    const deafenCombo = parseCombo(prefs?.shortcutDeafen ?? 'ctrl+shift+d');
+    const disconnectCombo = parseCombo(prefs?.shortcutDisconnect ?? 'ctrl+shift+h');
+
+    const isTypingTarget = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    };
+
+    const matches = (
+      e: KeyboardEvent,
+      combo: ReturnType<typeof parseCombo>,
+    ) =>
+      combo !== null &&
+      e.key.toLowerCase() === combo.key &&
+      e.ctrlKey === combo.ctrl &&
+      e.shiftKey === combo.shift &&
+      e.altKey === combo.alt &&
+      e.metaKey === combo.meta;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e)) return;
+      if (matches(e, muteCombo)) {
+        e.preventDefault();
+        void toggleMute();
+      } else if (matches(e, deafenCombo)) {
+        e.preventDefault();
+        void toggleDeafen();
+      } else if (matches(e, disconnectCombo)) {
+        e.preventDefault();
+        void leaveChannel();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [
+    enabled,
+    state.connectionState,
+    state.preferences,
+    toggleMute,
+    toggleDeafen,
+    leaveChannel,
+  ]);
 
   // Apply deafen → mute every remote audio (mic + screen-share-audio)
   // by setting its track volume to 0. Reverted to 1 on undeafen and
@@ -531,8 +775,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       toggleDeafen,
       switchMicDevice,
       switchCameraDevice,
+      switchOutputDevice,
       refreshDevices,
       setSpotlight,
+      loadPreferences,
+      updatePreferences,
     }),
     [
       joinChannel,
@@ -543,8 +790,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       toggleDeafen,
       switchMicDevice,
       switchCameraDevice,
+      switchOutputDevice,
       refreshDevices,
       setSpotlight,
+      loadPreferences,
+      updatePreferences,
     ],
   );
 
