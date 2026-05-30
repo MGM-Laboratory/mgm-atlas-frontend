@@ -1,27 +1,84 @@
 'use client';
 
-import { MicOff } from 'lucide-react';
+import { MicOff, MonitorUp } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import type { VoiceParticipantView } from '@/lib/voice/voice-provider';
+import { useVoice, type VoiceParticipantView } from '@/lib/voice/voice-provider';
+
+interface Props {
+  participant: VoiceParticipantView;
+  /** When true, the tile fills its container (used in the spotlight pane). */
+  large?: boolean;
+  /** Click handler — typically toggles spotlight to this participant. */
+  onClick?: () => void;
+}
 
 /**
- * A single tile in the voice room grid. The speaking halo is a CSS
- * box-shadow whose strength scales with the participant's audio level
- * (0..1 from LiveKit). Muted users never show the halo; instead a
- * MicOff badge sits over the avatar.
+ * Renders one participant. Visual order of preference:
+ *   1. Screen-share video, if they're sharing AND this is the large tile
+ *      (the small tile keeps the camera/avatar so the row shows who they are)
+ *   2. Camera video, if their camera is on
+ *   3. Avatar fallback with speaking halo
  *
- * Phase 2 will extend this to render video when the participant has a
- * camera track published; for now it's avatar-only audio.
+ * Mic mute / screen-share badges sit over the lower-right corner.
  */
-export function ParticipantTile({ participant }: { participant: VoiceParticipantView }) {
-  const { name, avatarUrl, isMuted, isSpeaking, audioLevel, isLocal } = participant;
-  const halo = !isMuted && isSpeaking ? Math.min(audioLevel * 24 + 4, 28) : 0;
+export function ParticipantTile({ participant, large, onClick }: Props) {
+  const {
+    name,
+    avatarUrl,
+    isMuted,
+    isSpeaking,
+    audioLevel,
+    isLocal,
+    cameraTrack,
+    screenShareTrack,
+    isScreenSharing,
+    screenShareAudioTrack,
+  } = participant;
+
+  const { state } = useVoice();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const screenAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Which video track this tile should show. Big tile prefers screen-share;
+  // small tile prefers camera (so the row stays "who" not "what they show").
+  const showTrack = large && screenShareTrack ? screenShareTrack : cameraTrack;
+  const hasVideo = !!showTrack;
+
+  // Attach video track.
+  useEffect(() => {
+    if (!showTrack || !videoRef.current) return;
+    showTrack.attach(videoRef.current);
+    return () => {
+      showTrack.detach();
+    };
+  }, [showTrack]);
+
+  // Attach screen-share audio (Chromium "Share tab audio") to a hidden
+  // <audio> element when the BIG tile is showing this person sharing.
+  // Skip when local (don't echo our own captured audio) or deafened.
+  useEffect(() => {
+    if (!screenShareAudioTrack || !screenAudioRef.current || isLocal || state.deafened) return;
+    screenShareAudioTrack.attach(screenAudioRef.current);
+    return () => {
+      screenShareAudioTrack.detach();
+    };
+  }, [screenShareAudioTrack, isLocal, state.deafened]);
+
+  const halo = !isMuted && isSpeaking && !hasVideo
+    ? Math.min(audioLevel * 24 + 4, 28)
+    : 0;
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        'flex flex-col items-center justify-center gap-2 rounded-xl border border-line-2 bg-surface-1 p-4 transition-shadow duration-200 ease-out-soft',
+        'group/tile relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-line-2 bg-surface-1 transition-shadow duration-200 ease-out-soft',
+        large ? 'h-full w-full' : 'aspect-video p-3',
+        onClick ? 'cursor-pointer' : '',
+        isSpeaking && !isMuted && !hasVideo ? 'ring-2 ring-brand-green' : '',
       )}
       style={
         halo > 0
@@ -29,26 +86,64 @@ export function ParticipantTile({ participant }: { participant: VoiceParticipant
           : undefined
       }
     >
-      <div className="relative">
+      {hasVideo ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          muted={isLocal}
+          playsInline
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover',
+            // Local camera mirrors so it feels like a mirror image.
+            isLocal && cameraTrack && showTrack === cameraTrack ? 'scale-x-[-1]' : '',
+          )}
+        />
+      ) : (
         <Avatar
           src={avatarUrl}
           name={name}
-          size={64}
+          size={large ? 64 : 48}
           className={cn(
             'ring-2 transition-colors duration-200 ease-out-soft',
             isSpeaking && !isMuted ? 'ring-brand-green' : 'ring-line-2',
           )}
         />
-        {isMuted ? (
-          <div className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-brand-red text-white">
-            <MicOff className="h-3 w-3" strokeWidth={2.5} />
-          </div>
-        ) : null}
+      )}
+
+      <audio ref={screenAudioRef} autoPlay style={{ display: 'none' }} />
+
+      {/* Footer with name + status badges */}
+      <div
+        className={cn(
+          'absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2',
+          hasVideo
+            ? 'rounded-md bg-black/50 px-2 py-1 text-xs font-medium text-white'
+            : 'mt-2 text-sm font-medium text-ink-1 static px-0',
+        )}
+      >
+        <span className="truncate">
+          {name}
+          {isLocal ? <span className="ml-1 opacity-70 text-xs">(you)</span> : null}
+        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          {isScreenSharing ? (
+            <span title="Sharing screen">
+              <MonitorUp className="h-3 w-3" strokeWidth={2.5} />
+            </span>
+          ) : null}
+          {isMuted ? (
+            <span
+              className={cn(
+                'inline-flex h-4 w-4 items-center justify-center rounded-full',
+                hasVideo ? 'bg-brand-red' : 'bg-brand-red text-white',
+              )}
+              title="Muted"
+            >
+              <MicOff className="h-2.5 w-2.5 text-white" strokeWidth={2.5} />
+            </span>
+          ) : null}
+        </div>
       </div>
-      <div className="max-w-full truncate text-sm font-medium text-ink-1">
-        {name}
-        {isLocal ? <span className="ml-1 text-ink-3 text-xs">(you)</span> : null}
-      </div>
-    </div>
+    </button>
   );
 }
