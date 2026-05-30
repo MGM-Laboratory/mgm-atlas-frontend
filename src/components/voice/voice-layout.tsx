@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, MessageSquare, Volume2 } from 'lucide-react';
+import { ArrowLeft, CircleDot, MessageSquare, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChannelList } from '@/components/chat/channel-list';
 import { getStoredSession } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
+import { useVoice } from '@/lib/voice/voice-provider';
 import { VoiceRoom } from './voice-room';
 import { VoiceChatThreadPanel } from './voice-chat-thread-panel';
 
@@ -44,6 +45,11 @@ export function VoiceLayout({
   }, []);
 
   const session = getStoredSession();
+  const { state: voiceState } = useVoice();
+  // Show the REC badge only when the local user is connected to THIS
+  // channel and a recording is in progress.
+  const isRecordingHere =
+    voiceState.recording !== null && voiceState.channelId === channelId;
 
   return (
     <div className="flex h-full min-h-0">
@@ -67,6 +73,15 @@ export function VoiceLayout({
           <div className="h-4 w-px bg-line" />
           <Volume2 className="h-4 w-4 text-ink-3" strokeWidth={2.25} />
           <h1 className="text-[15px] font-semibold text-ink">{channelName}</h1>
+          {isRecordingHere ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-brand-red px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+              title={`Recording started by ${voiceState.recording?.startedByName ?? 'a moderator'}`}
+            >
+              <CircleDot className="h-2.5 w-2.5 animate-pulse" strokeWidth={3} />
+              REC
+            </span>
+          ) : null}
           {channelTopic ? (
             <span className="hidden truncate text-[13px] text-ink-3 md:inline">
               · {channelTopic}

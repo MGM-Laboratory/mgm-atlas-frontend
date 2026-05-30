@@ -117,7 +117,7 @@ export function VoiceRoom({
             Share this voice channel with a teammate to start talking.
           </div>
         </div>
-        <VoiceControls />
+        <VoiceControls channelId={channelId} canModerate={canModerate} />
       </div>
     );
   }
@@ -168,7 +168,7 @@ export function VoiceRoom({
             </div>
           ) : null}
         </div>
-        <VoiceControls />
+        <VoiceControls channelId={channelId} canModerate={canModerate} />
       </div>
     );
   }
@@ -197,7 +197,7 @@ export function VoiceRoom({
           />
         ))}
       </div>
-      <VoiceControls />
+      <VoiceControls channelId={channelId} canModerate={canModerate} />
     </div>
   );
 }
