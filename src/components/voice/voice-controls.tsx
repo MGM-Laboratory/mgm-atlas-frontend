@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import {
   ChevronDown,
   Headphones,
@@ -14,6 +15,7 @@ import {
   VideoOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { VoiceSettingsDialog } from './voice-settings-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +35,7 @@ import { useVoice } from '@/lib/voice/voice-provider';
  */
 export function VoiceControls() {
   const { state, actions } = useVoice();
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   const connected = state.connectionState === 'connected';
   const reconnecting = state.connectionState === 'reconnecting';
   const ready = connected || reconnecting;
@@ -161,6 +164,21 @@ export function VoiceControls() {
 
       <div className="mx-1 h-6 w-px bg-line-2" />
 
+      {/* Settings */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Voice settings"
+          >
+            <Settings className="h-4 w-4" strokeWidth={2.25} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Voice settings</TooltipContent>
+      </Tooltip>
+
       {/* Leave */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -176,6 +194,8 @@ export function VoiceControls() {
         </TooltipTrigger>
         <TooltipContent>Disconnect</TooltipContent>
       </Tooltip>
+
+      <VoiceSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }

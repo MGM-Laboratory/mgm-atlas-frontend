@@ -61,3 +61,31 @@ export interface VoiceJoinEnvelope {
     audioQuality: VoiceAudioQuality;
   };
 }
+
+export type VoiceInputMode = 'VOICE_ACTIVITY' | 'PUSH_TO_TALK';
+
+/** Mirrors the backend's VoiceUserPreferences row (Phase 3). */
+export interface VoiceUserPreferences {
+  id: string;
+  userId: string;
+  inputMode: VoiceInputMode;
+  pttKey: string | null;
+  pttReleaseMs: number;
+  noiseSuppression: boolean;
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+  micDeviceId: string | null;
+  cameraDeviceId: string | null;
+  outputDeviceId: string | null;
+  micVolume: number;
+  outputVolume: number;
+  shortcutMute: string | null;
+  shortcutDeafen: string | null;
+  shortcutDisconnect: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type VoiceUserPreferencesPatch = Partial<
+  Omit<VoiceUserPreferences, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+>;
