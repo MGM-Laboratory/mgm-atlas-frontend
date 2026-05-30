@@ -261,6 +261,7 @@ export const apiPaths = {
     lobbyChannel: (channelId: string) => `/voice/lobby/channels/${channelId}`,
     join: (channelId: string) => `/voice/channels/${channelId}/join`,
     leave: (channelId: string) => `/voice/channels/${channelId}/leave`,
+    /** GET — resolve the paired ChatChannel id for a voice channel's text thread. */
     thread: (channelId: string) => `/voice/channels/${channelId}/thread`,
     moderateMute: (channelId: string) => `/voice/channels/${channelId}/moderate/mute`,
     moderateKick: (channelId: string) => `/voice/channels/${channelId}/moderate/kick`,
