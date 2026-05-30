@@ -125,7 +125,13 @@ export function VoiceLobbyLayout({ channelId, channelName, channelTopic }: Props
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <VoiceRoom channelId={channelId} channelName={channelName} projectId={null} />
+          <VoiceRoom
+            channelId={channelId}
+            channelName={channelName}
+            projectId={null}
+            projectSlugOrId={null}
+            canModerate={isAdmin}
+          />
         </div>
       </section>
     </div>

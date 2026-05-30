@@ -1,10 +1,11 @@
 'use client';
 
-import { MicOff, MonitorUp } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { MicOff, MonitorUp, VolumeX } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useVoice, type VoiceParticipantView } from '@/lib/voice/voice-provider';
+import { ParticipantMenu } from './participant-menu';
 
 interface Props {
   participant: VoiceParticipantView;
@@ -12,6 +13,10 @@ interface Props {
   large?: boolean;
   /** Click handler — typically toggles spotlight to this participant. */
   onClick?: () => void;
+  /** Right-click context menu wiring (Phase 5). When omitted, no menu. */
+  canModerate?: boolean;
+  projectSlugOrId?: string | null;
+  currentChannelId?: string;
 }
 
 /**
@@ -23,7 +28,14 @@ interface Props {
  *
  * Mic mute / screen-share badges sit over the lower-right corner.
  */
-export function ParticipantTile({ participant, large, onClick }: Props) {
+export function ParticipantTile({
+  participant,
+  large,
+  onClick,
+  canModerate,
+  projectSlugOrId,
+  currentChannelId,
+}: Props) {
   const {
     name,
     avatarUrl,
@@ -40,6 +52,12 @@ export function ParticipantTile({ participant, large, onClick }: Props) {
   const { state } = useVoice();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const screenAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Phase 5: right-click opens the per-participant menu (anchored at
+  // the click coords). Long-press touch is a Phase 7 polish.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const isLocallyMuted = state.localMuted.has(participant.identity);
 
   // Which video track this tile should show. Big tile prefers screen-share;
   // small tile prefers camera (so the row stays "who" not "what they show").
@@ -74,6 +92,13 @@ export function ParticipantTile({ participant, large, onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
+      onContextMenu={(e) => {
+        // Tile menu — even non-mods see volume + local-mute + profile.
+        if (isLocal) return; // skip menu on self
+        e.preventDefault();
+        setMenuAnchor({ x: e.clientX, y: e.clientY });
+        setMenuOpen(true);
+      }}
       className={cn(
         'group/tile relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-line-2 bg-surface-1 transition-shadow duration-200 ease-out-soft',
         large ? 'h-full w-full' : 'aspect-video p-3',
@@ -142,8 +167,27 @@ export function ParticipantTile({ participant, large, onClick }: Props) {
               <MicOff className="h-2.5 w-2.5 text-white" strokeWidth={2.5} />
             </span>
           ) : null}
+          {isLocallyMuted ? (
+            <span
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-ink-2 text-white"
+              title="Muted only for you"
+            >
+              <VolumeX className="h-2.5 w-2.5" strokeWidth={2.5} />
+            </span>
+          ) : null}
         </div>
       </div>
+      {!isLocal ? (
+        <ParticipantMenu
+          participant={participant}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          anchor={menuAnchor}
+          canModerate={!!canModerate}
+          projectSlugOrId={projectSlugOrId ?? null}
+          currentChannelId={currentChannelId ?? ''}
+        />
+      ) : null}
     </button>
   );
 }
