@@ -26,14 +26,16 @@ export function VoiceRoom({
 }) {
   const { state, actions } = useVoice();
 
-  // Auto-join when the route mounts (and we aren't already in this
-  // channel). The provider handles disconnecting from the previous
-  // room if any.
+  // Auto-join when the route mounts AND we have no active call. If the
+  // user is already in a DIFFERENT voice channel, we deliberately do
+  // NOT auto-disconnect — they must explicitly confirm the switch via
+  // the "Switch to X" button below (or via the sidebar dialog).
+  // No cleanup: the call keeps running across page navigation; the
+  // persistent panel lets them disconnect.
   useEffect(() => {
     if (state.channelId === channelId && state.connectionState !== 'idle') return;
+    if (state.channelId !== null && state.channelId !== channelId) return;
     void actions.joinChannel(channelId, { projectId });
-    // No cleanup here: we WANT the call to keep running when the user
-    // navigates away. The persistent panel lets them disconnect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, projectId]);
 

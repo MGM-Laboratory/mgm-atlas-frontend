@@ -8,15 +8,11 @@ import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
 import { useVoiceEnabled } from '@/lib/hooks/use-voice-enabled';
 import type { VoiceChannelWithRoster } from '@/lib/voice/types';
-import { VoiceRoom } from '@/components/voice/voice-room';
+import { VoiceLobbyLayout } from '@/components/voice/voice-lobby-layout';
 
 /**
- * Workspace-lobby voice channel page. Any authenticated user can land
- * here — there's no project access gate, just the feature flag.
- *
- * The actual call lifecycle (connect/disconnect) is handled by
- * <VoiceRoom> via the VoiceProvider on mount. The page just resolves
- * the channelId → channel metadata for display.
+ * Workspace-lobby voice channel page. Renders the lobby channel list
+ * + voice room side-by-side. Any authenticated user can land here.
  */
 export default function LobbyVoiceChannelPage() {
   const enabled = useVoiceEnabled();
@@ -42,9 +38,7 @@ export default function LobbyVoiceChannelPage() {
   const channel = lobbyQuery.data?.find((c) => c.id === channelId);
 
   if (lobbyQuery.isLoading) {
-    return (
-      <div className="grid h-full place-items-center text-sm text-ink-3">Loading…</div>
-    );
+    return <div className="h-full animate-pulse bg-surface-muted/40" />;
   }
 
   if (!channel) {
@@ -56,6 +50,10 @@ export default function LobbyVoiceChannelPage() {
   }
 
   return (
-    <VoiceRoom channelId={channel.id} channelName={channel.name} projectId={null} />
+    <VoiceLobbyLayout
+      channelId={channel.id}
+      channelName={channel.name}
+      channelTopic={channel.topic}
+    />
   );
 }

@@ -9,11 +9,13 @@ import { queryKeys } from '@/lib/api/queries';
 import { useVoiceEnabled } from '@/lib/hooks/use-voice-enabled';
 import type { ProjectDetail } from '@/lib/types';
 import type { VoiceChannelWithRoster } from '@/lib/voice/types';
-import { VoiceRoom } from '@/components/voice/voice-room';
+import { VoiceLayout } from '@/components/voice/voice-layout';
 
 /**
- * Per-project voice channel page. Gated by project access — non-insiders
- * are redirected home (matches the chat-conversation guard pattern).
+ * Per-project voice channel page. Renders the project's full channel
+ * list sidebar + the voice room in the right pane, so users can
+ * navigate to other channels mid-call. Gated by project insider
+ * access (matches the chat-conversation guard).
  */
 export default function ProjectVoiceChannelPage() {
   const enabled = useVoiceEnabled();
@@ -50,9 +52,7 @@ export default function ProjectVoiceChannelPage() {
   if (!enabled) return null;
 
   if (projectQuery.isLoading || channelsQuery.isLoading) {
-    return (
-      <div className="grid h-full place-items-center text-sm text-ink-3">Loading…</div>
-    );
+    return <div className="h-full animate-pulse bg-surface-muted/40" />;
   }
 
   const project = projectQuery.data;
@@ -68,10 +68,14 @@ export default function ProjectVoiceChannelPage() {
   }
 
   return (
-    <VoiceRoom
+    <VoiceLayout
+      projectSlug={slug}
+      projectTitle={project.title}
+      projectId={project.id}
       channelId={channel.id}
       channelName={channel.name}
-      projectId={project.id}
+      channelTopic={channel.topic}
+      isManager={project.access.isManager}
     />
   );
 }
