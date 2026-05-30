@@ -22,10 +22,16 @@ export function VoiceRoom({
   channelId,
   channelName,
   projectId,
+  projectSlugOrId,
+  canModerate,
 }: {
   channelId: string;
   channelName: string;
   projectId: string | null;
+  /** Project slug for the moderation move submenu. null for lobby. */
+  projectSlugOrId?: string | null;
+  /** Phase 5: when true, participant tiles show the moderator-only menu items. */
+  canModerate?: boolean;
 }) {
   const { state, actions } = useVoice();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -126,7 +132,13 @@ export function VoiceRoom({
       <div ref={containerRef} className="flex h-full flex-col bg-surface-1">
         <div className="relative flex min-h-0 flex-1 flex-col gap-3 p-3 md:flex-row">
           <div className="relative min-h-[60vh] flex-1 md:min-h-0">
-            <ParticipantTile participant={spotlight} large />
+            <ParticipantTile
+              participant={spotlight}
+              large
+              canModerate={canModerate}
+              projectSlugOrId={projectSlugOrId ?? null}
+              currentChannelId={channelId}
+            />
             <button
               type="button"
               onClick={() => void toggleFullscreen()}
@@ -147,6 +159,9 @@ export function VoiceRoom({
                   <ParticipantTile
                     participant={p}
                     onClick={() => actions.setSpotlight(p.identity)}
+                    canModerate={canModerate}
+                    projectSlugOrId={projectSlugOrId ?? null}
+                    currentChannelId={channelId}
                   />
                 </div>
               ))}
@@ -176,6 +191,9 @@ export function VoiceRoom({
             key={p.identity}
             participant={p}
             onClick={() => actions.setSpotlight(p.identity)}
+            canModerate={canModerate}
+            projectSlugOrId={projectSlugOrId ?? null}
+            currentChannelId={channelId}
           />
         ))}
       </div>

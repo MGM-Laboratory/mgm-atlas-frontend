@@ -99,6 +99,14 @@ export interface VoiceState {
   pttActive: boolean;
   /** Persisted prefs from the backend. null until first GET resolves. */
   preferences: VoiceUserPreferences | null;
+  /**
+   * Per-participant local volume (0-2, 1 = unity). Phase 5. Applied
+   * client-side via LiveKit RemoteAudioTrack.setVolume() — never
+   * affects what other peers hear. Identity → volume.
+   */
+  localVolume: Map<string, number>;
+  /** Phase 5 — set of identities the local user has personally muted. */
+  localMuted: Set<string>;
   ping: number | null;
   error: string | null;
 }
@@ -119,6 +127,17 @@ export interface VoiceActions {
   loadPreferences: () => Promise<void>;
   /** Persist a partial preferences update. Optimistic; rolls back on failure. */
   updatePreferences: (patch: VoiceUserPreferencesPatch) => Promise<void>;
+  // ─── Phase 5: per-participant local controls + moderation ─────────
+  /** Set a participant's local volume (0-2, 1 = unity). Persists across track-resubscribes. */
+  setLocalVolume: (identity: string, volume: number) => void;
+  /** Local-mute (only the calling user stops hearing target). */
+  toggleLocalMute: (identity: string) => void;
+  /** Mod: force-mute another participant for everyone. */
+  moderationMute: (identity: string, muted?: boolean) => Promise<void>;
+  /** Mod: disconnect another participant from the channel. */
+  moderationKick: (identity: string, reason?: string) => Promise<void>;
+  /** Mod: move another participant to a different voice channel. */
+  moderationMove: (identity: string, targetChannelId: string) => Promise<void>;
 }
 
 const VoiceContext = createContext<{ state: VoiceState; actions: VoiceActions } | null>(null);
@@ -137,6 +156,8 @@ const initialState: VoiceState = {
   cameraDeviceId: null,
   devices: { mics: [], cameras: [], outputs: [] },
   spotlightIdentity: null,
+  localVolume: new Map(),
+  localMuted: new Set(),
   pttActive: false,
   preferences: null,
   ping: null,
@@ -539,6 +560,114 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, spotlightIdentity: identity }));
   }, []);
 
+  // ─── Phase 5: per-participant local controls ────────────────────────
+
+  /**
+   * Apply the local-mute + per-participant volume to every remote
+   * audio track currently subscribed in the room. Called from the
+   * effect that watches state.localMuted / state.localVolume below
+   * AND on every refreshParticipants pass so newly-subscribed
+   * tracks pick up the right volume immediately.
+   */
+  const applyLocalAudioOverrides = useCallback(
+    (room: Room, localVolume: Map<string, number>, localMuted: Set<string>, deafened: boolean) => {
+      for (const p of room.remoteParticipants.values()) {
+        // Deafen wins for everyone; otherwise local-mute wins for
+        // this identity; otherwise the user's per-participant volume
+        // (1 = unity) is applied.
+        const muted = deafened || localMuted.has(p.identity);
+        const vol = muted ? 0 : (localVolume.get(p.identity) ?? 1);
+        for (const pub of p.audioTrackPublications.values()) {
+          const track = pub.track;
+          if (track && 'setVolume' in track) {
+            try {
+              (track as RemoteAudioTrack).setVolume(vol);
+            } catch {
+              // Track gone — ignore
+            }
+          }
+        }
+      }
+    },
+    [],
+  );
+
+  const setLocalVolume = useCallback<VoiceActions['setLocalVolume']>(
+    (identity, volume) => {
+      // Clamp to [0, 2] — 2 = doubled output.
+      const clamped = Math.max(0, Math.min(2, volume));
+      setState((prev) => {
+        const next = new Map(prev.localVolume);
+        if (clamped === 1) next.delete(identity); // unity = no override
+        else next.set(identity, clamped);
+        return { ...prev, localVolume: next };
+      });
+    },
+    [],
+  );
+
+  const toggleLocalMute = useCallback<VoiceActions['toggleLocalMute']>(
+    (identity) => {
+      setState((prev) => {
+        const next = new Set(prev.localMuted);
+        if (next.has(identity)) next.delete(identity);
+        else next.add(identity);
+        return { ...prev, localMuted: next };
+      });
+    },
+    [],
+  );
+
+  // ─── Phase 5: server-side moderation (admin/PM only) ────────────────
+
+  const moderationMute = useCallback<VoiceActions['moderationMute']>(
+    async (identity, muted = true) => {
+      const channelId = state.channelId;
+      if (!channelId) return;
+      try {
+        await api(apiPaths.voice.moderateMute(channelId), {
+          method: 'POST',
+          body: { participantUserId: identity, muted },
+        });
+      } catch (err) {
+        patch({ error: (err as Error).message ?? 'Failed to mute participant.' });
+      }
+    },
+    [patch, state.channelId],
+  );
+
+  const moderationKick = useCallback<VoiceActions['moderationKick']>(
+    async (identity, reason) => {
+      const channelId = state.channelId;
+      if (!channelId) return;
+      try {
+        await api(apiPaths.voice.moderateKick(channelId), {
+          method: 'POST',
+          body: { participantUserId: identity, reason },
+        });
+      } catch (err) {
+        patch({ error: (err as Error).message ?? 'Failed to disconnect participant.' });
+      }
+    },
+    [patch, state.channelId],
+  );
+
+  const moderationMove = useCallback<VoiceActions['moderationMove']>(
+    async (identity, targetChannelId) => {
+      const channelId = state.channelId;
+      if (!channelId) return;
+      try {
+        await api(apiPaths.voice.moderateMove(channelId), {
+          method: 'POST',
+          body: { participantUserId: identity, targetChannelId },
+        });
+      } catch (err) {
+        patch({ error: (err as Error).message ?? 'Failed to move participant.' });
+      }
+    },
+    [patch, state.channelId],
+  );
+
   // ─── Preferences (backend-persisted) ────────────────────────────────
 
   const loadPreferences = useCallback<VoiceActions['loadPreferences']>(async () => {
@@ -596,6 +725,100 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [enabled, teardownRoom]);
+
+  // ─── Phase 5: handle "you were moved or kicked" events ──────────────
+  // The backend emits these to the targeted user's per-user socket
+  // room when a moderator acts on them. Two kinds:
+  //   - kicked: the LiveKit room already disconnected us; we just show
+  //     a toast-ish state via `error` and let the room go fully idle.
+  //   - moved: the payload carries a fresh LiveKit URL + token; we
+  //     teardown our current room and connect directly with the new
+  //     token (skipping the /join REST roundtrip since the mod already
+  //     minted server-side).
+  useEffect(() => {
+    if (!enabled) return;
+    const socket = getVoiceSocket();
+    if (!socket) return;
+    const onModeratedAction = async (payload: {
+      kind: 'kicked' | 'moved';
+      sourceChannelId?: string;
+      targetChannelId?: string;
+      targetChannelName?: string;
+      projectId?: string | null;
+      url?: string;
+      token?: string;
+      reason?: string | null;
+    }) => {
+      if (payload.kind === 'kicked') {
+        await teardownRoom();
+        setState({
+          ...initialState,
+          error: payload.reason
+            ? `You were disconnected by a moderator: ${payload.reason}`
+            : 'You were disconnected by a moderator.',
+          connectionState: 'error',
+        });
+        return;
+      }
+      if (payload.kind === 'moved' && payload.url && payload.token && payload.targetChannelId) {
+        // Tear down current room then connect with the pre-minted token.
+        if (roomRef.current) await teardownRoom();
+        patch({
+          connectionState: 'connecting',
+          channelId: payload.targetChannelId,
+          projectId: payload.projectId ?? null,
+          channelName: payload.targetChannelName ?? null,
+          error: null,
+          participants: new Map(),
+          ping: null,
+        });
+        const prefs = state.preferences;
+        const room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+          publishDefaults: { audioPreset: { maxBitrate: 64_000 } },
+          audioCaptureDefaults: {
+            autoGainControl: prefs?.autoGainControl ?? true,
+            echoCancellation: prefs?.echoCancellation ?? true,
+            noiseSuppression: prefs?.noiseSuppression ?? true,
+            deviceId: prefs?.micDeviceId ?? undefined,
+          },
+          videoCaptureDefaults: { deviceId: prefs?.cameraDeviceId ?? undefined },
+        });
+        roomRef.current = room;
+        room
+          .on(RoomEvent.ParticipantConnected, () => refreshParticipants(room))
+          .on(RoomEvent.ParticipantDisconnected, () => refreshParticipants(room))
+          .on(RoomEvent.ActiveSpeakersChanged, () => refreshParticipants(room))
+          .on(RoomEvent.TrackMuted, () => refreshParticipants(room))
+          .on(RoomEvent.TrackUnmuted, () => refreshParticipants(room))
+          .on(RoomEvent.TrackSubscribed, () => refreshParticipants(room))
+          .on(RoomEvent.TrackUnsubscribed, () => refreshParticipants(room))
+          .on(RoomEvent.LocalTrackPublished, () => refreshParticipants(room))
+          .on(RoomEvent.Reconnecting, () => patch({ connectionState: 'reconnecting' }))
+          .on(RoomEvent.Reconnected, () => patch({ connectionState: 'connected' }))
+          .on(RoomEvent.Disconnected, () => {
+            if (roomRef.current === room) {
+              roomRef.current = null;
+              setState(initialState);
+            }
+          });
+        try {
+          await room.connect(payload.url, payload.token);
+          const startWithMicOn = (prefs?.inputMode ?? 'VOICE_ACTIVITY') !== 'PUSH_TO_TALK';
+          await room.localParticipant.setMicrophoneEnabled(startWithMicOn);
+          patch({ connectionState: 'connected', micMuted: !startWithMicOn });
+        } catch (err) {
+          roomRef.current = null;
+          patch({ connectionState: 'error', error: (err as Error).message ?? 'Move failed.' });
+        }
+      }
+    };
+    socket.on('voice.moved-or-kicked', onModeratedAction);
+    return () => {
+      socket.off('voice.moved-or-kicked', onModeratedAction);
+    };
+  }, [enabled, patch, refreshParticipants, teardownRoom, state.preferences]);
 
   // ─── Push-to-talk key handler ───────────────────────────────────────
 
@@ -744,26 +967,20 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     leaveChannel,
   ]);
 
-  // Apply deafen → mute every remote audio (mic + screen-share-audio)
-  // by setting its track volume to 0. Reverted to 1 on undeafen and
-  // re-applied to newly-joined participants via the participants map.
+  // Apply deafen + local mute + per-participant volume to every remote
+  // audio track. Re-runs whenever any of those inputs change OR a new
+  // remote participant joins (state.participants identity-changes).
   useEffect(() => {
     const room = roomRef.current;
     if (!room) return;
-    const target = state.deafened ? 0 : 1;
-    for (const p of room.remoteParticipants.values()) {
-      for (const pub of p.audioTrackPublications.values()) {
-        const track = pub.track;
-        if (track && 'setVolume' in track) {
-          try {
-            (track as RemoteAudioTrack).setVolume(target);
-          } catch {
-            // Track gone — ignore
-          }
-        }
-      }
-    }
-  }, [state.deafened, state.participants]);
+    applyLocalAudioOverrides(room, state.localVolume, state.localMuted, state.deafened);
+  }, [
+    state.deafened,
+    state.localVolume,
+    state.localMuted,
+    state.participants,
+    applyLocalAudioOverrides,
+  ]);
 
   const actions = useMemo<VoiceActions>(
     () => ({
@@ -780,6 +997,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       setSpotlight,
       loadPreferences,
       updatePreferences,
+      setLocalVolume,
+      toggleLocalMute,
+      moderationMute,
+      moderationKick,
+      moderationMove,
     }),
     [
       joinChannel,
@@ -795,6 +1017,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       setSpotlight,
       loadPreferences,
       updatePreferences,
+      setLocalVolume,
+      toggleLocalMute,
+      moderationMute,
+      moderationKick,
+      moderationMove,
     ],
   );
 

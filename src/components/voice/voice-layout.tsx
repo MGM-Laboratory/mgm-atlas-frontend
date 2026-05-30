@@ -86,7 +86,13 @@ export function VoiceLayout({
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <VoiceRoom channelId={channelId} channelName={channelName} projectId={projectId} />
+          <VoiceRoom
+            channelId={channelId}
+            channelName={channelName}
+            projectId={projectId}
+            projectSlugOrId={projectSlug}
+            canModerate={isManager}
+          />
         </div>
       </section>
 
