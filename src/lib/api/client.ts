@@ -36,12 +36,22 @@ export async function api<T = unknown>(path: string, opts: FetchOptions = {}): P
   return (await res.json()) as T;
 }
 
-/** Direct PUT — used for S3 presigned uploads (no auth, raw body). */
-export async function uploadToPresigned(uploadUrl: string, file: File, onProgress?: (pct: number) => void) {
+/**
+ * Direct PUT — used for S3 presigned uploads (no auth, raw body).
+ * `contentType` overrides the header sent on the wire; it must match the
+ * content-type the URL was signed with, otherwise S3 rejects the signature.
+ * Defaults to the file's own type to preserve existing callers.
+ */
+export async function uploadToPresigned(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+  contentType?: string,
+) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('content-type', file.type);
+    xhr.setRequestHeader('content-type', contentType ?? file.type);
     if (onProgress) {
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);

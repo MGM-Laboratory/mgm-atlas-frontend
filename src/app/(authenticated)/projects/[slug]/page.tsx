@@ -26,6 +26,9 @@ import { PhaseBadge } from '@/components/projects/project-thumbnail';
 import { ContributeModal } from '@/components/projects/contribute-modal';
 import { BookmarkButton } from '@/components/projects/bookmark-button';
 import { RichTextEditor } from '@/components/rich-text/editor';
+import { TaskListsSidebar } from '@/components/pmo/task-lists-sidebar';
+import { TaskListPicker } from '@/components/pmo/task-list-picker';
+import { isPmoEnabled } from '@/lib/hooks/use-pmo-enabled';
 import { PROJECT_PHASE_LABEL } from '@/lib/types';
 
 export default function ProjectDetailPage() {
@@ -118,6 +121,9 @@ export default function ProjectDetailPage() {
                     Manage
                   </Link>
                 </Button>
+              ) : null}
+              {project.access.isInsider && isPmoEnabled() ? (
+                <TaskListPicker projectSlug={project.slug} />
               ) : null}
               {project.access.isInsider ? (
                 <Button asChild variant="secondary" size="lg">
@@ -215,6 +221,8 @@ export default function ProjectDetailPage() {
                     <span className="text-[13px] text-ink-3">No links yet.</span>
                   )}
                 </Section>
+
+                <TaskListsSidebar projectSlug={project.slug} canManage={project.access.isManager} />
 
                 <Section title={`Members (${insider.members.length})`}>
                   <ul className="space-y-2">

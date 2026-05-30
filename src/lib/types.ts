@@ -207,6 +207,37 @@ export interface DashboardPayload {
   contributing: Array<Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'phase' | 'visibility' | 'thumbnailUrl' | 'thumbnailType'> & { archivedAt: string | null }>;
   pendingRequests: { id: string; role: string; message: string; createdAt: string; project: Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'thumbnailUrl' | 'thumbnailType'> }[];
   bookmarks: Pick<ProjectCard, 'id' | 'slug' | 'title' | 'shortDescription' | 'phase' | 'thumbnailUrl' | 'thumbnailType'>[];
+  /// Top open PMO tasks assigned to me, soonest-due first. Absent/empty when PMO is off.
+  myOpenTasks?: MyOpenTask[];
+}
+
+export interface MyOpenTask {
+  id: string;
+  key: string;
+  title: string;
+  dueDate: string | null;
+  priority: TaskPriority;
+  status: { name: string; color: string; category: TaskStatusCategory };
+  taskList: { id: string; name: string };
+  project: { slug: string; title: string };
+}
+
+/// Overview-tab aggregate stats (GET …/task-lists/:listId/overview).
+export interface ListOverview {
+  byStatus: { statusId: string; name: string; color: string; category: TaskStatusCategory; count: number }[];
+  dueToday: number;
+  dueThisWeek: number;
+  overdue: number;
+  totalOpen: number;
+  workload: { userId: string; name: string; avatarUrl: string | null; count: number }[];
+  recentActivity: {
+    id: string;
+    kind: string;
+    payload: unknown;
+    createdAt: string;
+    taskId: string;
+    actor: { id: string; name: string; avatarUrl: string | null } | null;
+  }[];
 }
 
 // ─── Chat ──────────────────────────────────────────────────────────────
@@ -437,3 +468,377 @@ export const BRAND_FOR_PHASE: Record<ProjectPhase, 'blue' | 'yellow' | 'red' | '
   SHIPPED: 'green',
   ARCHIVED: 'neutral',
 };
+
+// ─── PMO (project management office) ────────────────────────────────────────
+
+export type PmoBrandColor = 'blue' | 'yellow' | 'red' | 'green' | 'neutral';
+
+export type TaskStatusCategory = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+
+export type TaskPriority = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export type TaskListTabKind =
+  | 'OVERVIEW'
+  | 'LIST'
+  | 'KANBAN'
+  | 'GANTT'
+  | 'TEAM'
+  | 'FILES'
+  | 'NOTES'
+  | 'WHITEBOARDS'
+  | 'EMBED';
+
+export interface TaskStatus {
+  id: string;
+  taskListId: string;
+  name: string;
+  color: string;
+  category: TaskStatusCategory;
+  order: number;
+  isDefault: boolean;
+}
+
+export interface TaskListTab {
+  id: string;
+  taskListId: string;
+  kind: TaskListTabKind;
+  label: string | null;
+  iconName: string | null;
+  url: string | null;
+  embedPreset: string | null;
+  order: number;
+  hidden: boolean;
+  createdAt: string;
+}
+
+export interface TaskList {
+  id: string;
+  projectId: string;
+  name: string;
+  iconName: string;
+  iconColor: PmoBrandColor;
+  order: number;
+  contributorsCanCreateTasks: boolean;
+  projectKey: string | null;
+  taskCounter: number;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  statuses: TaskStatus[];
+  tabs: TaskListTab[];
+  _count?: { tasks: number };
+}
+
+/** Default left-to-right order of the built-in tabs as the backend seeds them. */
+export const TASK_LIST_TAB_KIND_ORDER: TaskListTabKind[] = [
+  'OVERVIEW',
+  'LIST',
+  'KANBAN',
+  'GANTT',
+  'TEAM',
+  'FILES',
+  'NOTES',
+  'WHITEBOARDS',
+];
+
+export const TASK_LIST_TAB_LABEL: Record<TaskListTabKind, string> = {
+  OVERVIEW: 'Overview',
+  LIST: 'List',
+  KANBAN: 'Kanban',
+  GANTT: 'Timeline',
+  TEAM: 'Team',
+  FILES: 'Files',
+  NOTES: 'Notes',
+  WHITEBOARDS: 'Whiteboards',
+  EMBED: 'Embed',
+};
+
+/**
+ * URL path segment per built-in tab kind, appended to
+ * `/projects/[slug]/lists/[listId]`. EMBED tabs use their own id.
+ */
+export const TASK_LIST_TAB_PATH: Record<Exclude<TaskListTabKind, 'EMBED'>, string> = {
+  OVERVIEW: '',
+  LIST: '/list',
+  KANBAN: '/kanban',
+  GANTT: '/timeline',
+  TEAM: '/team',
+  FILES: '/files',
+  NOTES: '/notes',
+  WHITEBOARDS: '/whiteboards',
+};
+
+/**
+ * Which built-in tab kinds are wired up in the frontend right now. Tabs not
+ * in this set still render in the navbar (so users can see the future
+ * shape) but are disabled with a tooltip until their phase ships.
+ *
+ * Update this set as each phase lands.
+ */
+export const IMPLEMENTED_TAB_KINDS: ReadonlySet<TaskListTabKind> = new Set<TaskListTabKind>([
+  'OVERVIEW',
+  'LIST',
+  'KANBAN',
+  'GANTT',
+  'TEAM',
+  'FILES',
+  'NOTES',
+  'WHITEBOARDS',
+]);
+
+export interface WhiteboardListItem {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  createdById: string;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Full whiteboard incl. the Excalidraw scene projection (preview/export). */
+export interface Whiteboard extends WhiteboardListItem {
+  yDocKey: string;
+  sceneSnapshot: unknown;
+  deletedAt: string | null;
+}
+
+/** A node in the project Notes tree (metadata only — content lives in Yjs). */
+export interface ProjectNoteTreeItem {
+  id: string;
+  projectId: string;
+  parentNoteId: string | null;
+  title: string;
+  iconName: string | null;
+  order: number;
+  createdById: string;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Full note including the BlockNote JSON projection (SSR/preview/fallback). */
+export interface ProjectNote extends ProjectNoteTreeItem {
+  yDocKey: string;
+  contentSnapshot: unknown;
+  deletedAt: string | null;
+}
+
+/** Response of GET /projects/:slug/notes/:noteId/yjs-token. */
+export interface YjsTokenResponse {
+  token: string;
+  docKey: string;
+  wsUrl: string;
+}
+
+export interface ProjectFileUploader {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+/** A node in the project Files tree — either a folder or an uploaded file. */
+export interface ProjectFile {
+  id: string;
+  projectId: string;
+  parentFolderId: string | null;
+  name: string;
+  isFolder: boolean;
+  /// Null for folders.
+  url: string | null;
+  s3Key: string | null;
+  mime: string | null;
+  bytes: number | null;
+  uploadedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  uploadedBy: ProjectFileUploader | null;
+}
+
+export interface ProjectFilesResponse {
+  /// The folder being listed, or null for the project root.
+  folderId: string | null;
+  /// Root-to-current ancestor chain (excludes the root itself).
+  breadcrumb: { id: string; name: string }[];
+  items: ProjectFile[];
+}
+
+export interface TaskAssigneeUser {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+export interface TaskAssignee {
+  id: string;
+  taskId: string;
+  userId: string;
+  assignedAt: string;
+  user: TaskAssigneeUser;
+}
+
+export interface Task {
+  id: string;
+  taskListId: string;
+  projectId: string;
+  key: string;
+  title: string;
+  /// Tiptap JSON document.
+  description: Record<string, unknown>;
+  statusId: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  storyPoints: number | null;
+  startDate: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  /// Stringified Decimal from Prisma. Compare via Number().
+  positionInStatus: string;
+  createdById: string;
+  archivedAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  assignees: TaskAssignee[];
+}
+
+export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
+  NONE: 'No priority',
+  LOW: 'Low',
+  MEDIUM: 'Medium',
+  HIGH: 'High',
+  URGENT: 'Urgent',
+};
+
+export const TASK_PRIORITY_ORDER: TaskPriority[] = ['NONE', 'LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+
+// ─── Task comments + activity (Phase 3) ─────────────────────────────────────
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  /// GFM markdown source. May be the tombstone "_[comment removed]_" if deleted.
+  markdown: string;
+  replyToId: string | null;
+  editedAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  author: TaskAssigneeUser;
+}
+
+export interface PaginatedComments {
+  items: TaskComment[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type TaskActivityKind =
+  | 'CREATED'
+  | 'RENAMED'
+  | 'DESCRIPTION_EDITED'
+  | 'STATUS_CHANGED'
+  | 'PRIORITY_CHANGED'
+  | 'ASSIGNED'
+  | 'UNASSIGNED'
+  | 'DUE_DATE_SET'
+  | 'DUE_DATE_CLEARED'
+  | 'START_DATE_SET'
+  | 'DEPENDENCY_ADDED'
+  | 'DEPENDENCY_REMOVED'
+  | 'COMMENT_ADDED'
+  | 'ATTACHMENT_ADDED'
+  | 'ARCHIVED'
+  | 'UNARCHIVED'
+  | 'COMPLETED'
+  | 'REOPENED'
+  | 'MENTIONED';
+
+export interface TaskActivity {
+  id: string;
+  kind: TaskActivityKind;
+  /// Structured diff. Shape depends on `kind`; see backend
+  /// task-activity.service for the writer.
+  payload: Record<string, unknown>;
+  createdAt: string;
+  actor: TaskAssigneeUser | null;
+}
+
+export interface PaginatedActivity {
+  items: TaskActivity[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type TaskDependencyKind =
+  | 'FINISH_TO_START'
+  | 'START_TO_START'
+  | 'FINISH_TO_FINISH'
+  | 'START_TO_FINISH';
+
+export interface GanttTaskRow {
+  id: string;
+  key: string;
+  title: string;
+  statusId: string;
+  statusName: string;
+  statusCategory: TaskStatusCategory;
+  startDate: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  assignees: TaskAssigneeUser[];
+}
+
+export interface GanttDependency {
+  id: string;
+  fromTaskId: string;
+  toTaskId: string;
+  kind: TaskDependencyKind;
+}
+
+export interface GanttPayload {
+  tasks: GanttTaskRow[];
+  dependencies: GanttDependency[];
+}
+
+export type MentionSuggestionKind = 'user' | 'task';
+
+export interface MentionSuggestion {
+  kind: MentionSuggestionKind;
+  id: string;
+  label: string;
+  subtitle?: string;
+  avatarUrl?: string | null;
+  iconName?: string | null;
+  iconColor?: string | null;
+}
+
+// ─── Team (Phase 6) ─────────────────────────────────────────────────────────
+
+export interface TeamMember {
+  id: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string | null;
+    bio: string | null;
+  };
+  role: ProjectRole;
+  /// Free-form collaboration role title (e.g. "Frontend Engineer").
+  title: string | null;
+  joinedAt: string;
+  /// Project-wide count of non-deleted, non-archived assigned tasks.
+  taskCount: number;
+  isOwner: boolean;
+}
+
+export interface TeamPayload {
+  managers: TeamMember[];
+  contributors: TeamMember[];
+}

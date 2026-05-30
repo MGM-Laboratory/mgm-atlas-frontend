@@ -13,7 +13,9 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ProjectThumbnail, PhaseBadge } from '@/components/projects/project-thumbnail';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { formatRelative } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { formatDueDate } from '@/components/pmo/date-picker-popover';
+import { formatRelative, cn } from '@/lib/utils';
 
 export default function MyDashboardPage() {
   const [me, setMe] = useState<SessionUser & { lastLoginAt?: string; bio?: string | null } | null>(null);
@@ -70,6 +72,47 @@ export default function MyDashboardPage() {
           </Link>
         </Button>
       </header>
+
+      {dash.myOpenTasks && dash.myOpenTasks.length > 0 ? (
+        <section>
+          <h2 className="mb-3 text-[12px] uppercase tracking-[0.12em] text-ink-3">My open tasks</h2>
+          <Card className="p-0">
+            <ul className="divide-y divide-line">
+              {dash.myOpenTasks.map((t) => {
+                const overdue = t.dueDate
+                  ? new Date(t.dueDate) < new Date(new Date().toDateString())
+                  : false;
+                return (
+                  <li key={t.id}>
+                    <Link
+                      href={
+                        `/projects/${t.project.slug}/lists/${t.taskList.id}/tasks/${t.key}` as never
+                      }
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-surface-muted"
+                    >
+                      <code className="shrink-0 text-[12px] text-ink-3">{t.key}</code>
+                      <span className="min-w-0 flex-1 truncate text-[14px] text-ink">{t.title}</span>
+                      <span className="hidden shrink-0 text-[12px] text-ink-3 sm:inline">
+                        {t.project.title}
+                      </span>
+                      {t.dueDate ? (
+                        <span
+                          className={cn(
+                            'shrink-0 text-[12px]',
+                            overdue ? 'text-brand-red' : 'text-ink-3',
+                          )}
+                        >
+                          {formatDueDate(t.dueDate)}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        </section>
+      ) : null}
 
       <Tabs defaultValue="managing">
         <TabsList>

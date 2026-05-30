@@ -134,4 +134,144 @@ export const apiPaths = {
     registerSticker: (packId: string) => `/admin/stickers/packs/${packId}/stickers`,
     sticker: (stickerId: string) => `/admin/stickers/stickers/${stickerId}`,
   },
+
+  // ─── PMO (project management office) ──────────────────────────────────
+  // Gated by NEXT_PUBLIC_PMO_ENABLED on the frontend and PMO_ENABLED on
+  // the backend; routes 404 when the flag is off.
+  pmo: {
+    lists: {
+      list: (slug: string) => `/projects/${slug}/task-lists`,
+      create: (slug: string) => `/projects/${slug}/task-lists`,
+      reorder: (slug: string) => `/projects/${slug}/task-lists/reorder`,
+      one: (slug: string, listId: string) => `/projects/${slug}/task-lists/${listId}`,
+      archive: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/archive`,
+      unarchive: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/unarchive`,
+      reorderTabs: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tabs/reorder`,
+      createTab: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tabs`,
+      deleteTab: (slug: string, listId: string, tabId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tabs/${tabId}`,
+      statuses: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/statuses`,
+    },
+    tasks: {
+      list: (
+        slug: string,
+        listId: string,
+        filters: {
+          statusId?: string;
+          assigneeId?: string;
+          q?: string;
+          includeArchived?: boolean;
+        } = {},
+      ) => {
+        const params = new URLSearchParams();
+        if (filters.statusId) params.set('statusId', filters.statusId);
+        if (filters.assigneeId) params.set('assigneeId', filters.assigneeId);
+        if (filters.q) params.set('q', filters.q);
+        if (filters.includeArchived) params.set('includeArchived', 'true');
+        const qs = params.toString();
+        return `/projects/${slug}/task-lists/${listId}/tasks${qs ? `?${qs}` : ''}`;
+      },
+      create: (slug: string, listId: string) =>
+        `/projects/${slug}/task-lists/${listId}/tasks`,
+      one: (slug: string, taskId: string) => `/projects/${slug}/tasks/${taskId}`,
+      byKey: (slug: string, key: string) =>
+        `/projects/${slug}/tasks/key/${encodeURIComponent(key)}`,
+      move: (slug: string, taskId: string) => `/projects/${slug}/tasks/${taskId}/position`,
+      archive: (slug: string, taskId: string) => `/projects/${slug}/tasks/${taskId}/archive`,
+      unarchive: (slug: string, taskId: string) =>
+        `/projects/${slug}/tasks/${taskId}/unarchive`,
+    },
+    /// Reuses the chat module's members endpoint for the assignee picker.
+    /// Returns the same {id, name, avatarUrl} shape we need.
+    members: (slug: string, q?: string) =>
+      `/projects/${slug}/chat/members${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    /// Mention search for the description / comment composer @-popover.
+    /// `kind=user` (project members) | `kind=task` (project tasks).
+    mentionSearch: (slug: string, kind: 'user' | 'task', q?: string) => {
+      const params = new URLSearchParams({ kind });
+      if (q) params.set('q', q);
+      return `/projects/${slug}/pmo/mention-search?${params.toString()}`;
+    },
+    comments: {
+      list: (slug: string, taskId: string, page = 1, pageSize = 50) =>
+        `/projects/${slug}/tasks/${taskId}/comments?page=${page}&pageSize=${pageSize}`,
+      create: (slug: string, taskId: string) =>
+        `/projects/${slug}/tasks/${taskId}/comments`,
+      update: (slug: string, commentId: string) =>
+        `/projects/${slug}/task-comments/${commentId}`,
+      remove: (slug: string, commentId: string) =>
+        `/projects/${slug}/task-comments/${commentId}`,
+    },
+    activity: (slug: string, taskId: string) =>
+      `/projects/${slug}/tasks/${taskId}/activity`,
+    gantt: (slug: string, listId: string) =>
+      `/projects/${slug}/task-lists/${listId}/gantt`,
+    overview: (slug: string, listId: string) =>
+      `/projects/${slug}/task-lists/${listId}/overview`,
+    addDependency: (slug: string, fromTaskId: string) =>
+      `/projects/${slug}/tasks/${fromTaskId}/dependencies`,
+    removeDependency: (slug: string, fromTaskId: string, depId: string) =>
+      `/projects/${slug}/tasks/${fromTaskId}/dependencies/${depId}`,
+    team: (slug: string) => `/projects/${slug}/pmo/team`,
+    files: {
+      list: (slug: string, folderId?: string) =>
+        `/projects/${slug}/files${folderId ? `?folderId=${folderId}` : ''}`,
+      presign: (slug: string) => `/projects/${slug}/files/presign`,
+      register: (slug: string) => `/projects/${slug}/files`,
+      createFolder: (slug: string) => `/projects/${slug}/files/folder`,
+      update: (slug: string, fileId: string) => `/projects/${slug}/files/${fileId}`,
+      remove: (slug: string, fileId: string, force?: boolean) =>
+        `/projects/${slug}/files/${fileId}${force ? '?force=1' : ''}`,
+    },
+    notes: {
+      list: (slug: string) => `/projects/${slug}/notes`,
+      create: (slug: string) => `/projects/${slug}/notes`,
+      one: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
+      update: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
+      remove: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
+      yjsToken: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}/yjs-token`,
+    },
+    whiteboards: {
+      list: (slug: string) => `/projects/${slug}/whiteboards`,
+      create: (slug: string) => `/projects/${slug}/whiteboards`,
+      one: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}`,
+      update: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}`,
+      remove: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}`,
+      yjsToken: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}/yjs-token`,
+      exportMgm: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}/export`,
+      thumbnailPresign: (slug: string, wbId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/thumbnail/presign`,
+    },
+  },
+
+  // ─── Voice (Phase 0: stubs only; populated in Phase 1+) ────────────────
+  // Per-project voice channels live under /projects/:slug/voice/*; the
+  // workspace lobby lives under /voice/lobby/*. Both surfaces share the
+  // same join/leave/moderation routes under /voice/channels/:id/*.
+  voice: {
+    channels: (slugOrId: string) => `/projects/${slugOrId}/voice/channels`,
+    channel: (slugOrId: string, channelId: string) =>
+      `/projects/${slugOrId}/voice/channels/${channelId}`,
+    lobbyChannels: () => '/voice/lobby/channels',
+    lobbyChannel: (channelId: string) => `/voice/lobby/channels/${channelId}`,
+    join: (channelId: string) => `/voice/channels/${channelId}/join`,
+    leave: (channelId: string) => `/voice/channels/${channelId}/leave`,
+    thread: (channelId: string) => `/voice/channels/${channelId}/thread`,
+    moderateMute: (channelId: string) => `/voice/channels/${channelId}/moderate/mute`,
+    moderateKick: (channelId: string) => `/voice/channels/${channelId}/moderate/kick`,
+    moderateMove: (channelId: string) => `/voice/channels/${channelId}/moderate/move`,
+    preferences: () => '/voice/me/preferences',
+    soundboardClips: () => '/voice/soundboard/clips',
+    soundboardClip: (id: string) => `/voice/soundboard/clips/${id}`,
+    soundboardPresign: () => '/voice/soundboard/clips/presign',
+    recordingStart: (channelId: string) => `/voice/channels/${channelId}/recording/start`,
+    recordingStop: (channelId: string) => `/voice/channels/${channelId}/recording/stop`,
+    recordings: (channelId: string) => `/voice/channels/${channelId}/recordings`,
+    recordingDownload: (recordingId: string) => `/voice/recordings/${recordingId}/download`,
+  },
 };
