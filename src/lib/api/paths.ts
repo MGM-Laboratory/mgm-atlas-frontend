@@ -248,4 +248,30 @@ export const apiPaths = {
         `/projects/${slug}/whiteboards/${wbId}/thumbnail/presign`,
     },
   },
+
+  // ─── Voice (Phase 0: stubs only; populated in Phase 1+) ────────────────
+  // Per-project voice channels live under /projects/:slug/voice/*; the
+  // workspace lobby lives under /voice/lobby/*. Both surfaces share the
+  // same join/leave/moderation routes under /voice/channels/:id/*.
+  voice: {
+    channels: (slugOrId: string) => `/projects/${slugOrId}/voice/channels`,
+    channel: (slugOrId: string, channelId: string) =>
+      `/projects/${slugOrId}/voice/channels/${channelId}`,
+    lobbyChannels: () => '/voice/lobby/channels',
+    lobbyChannel: (channelId: string) => `/voice/lobby/channels/${channelId}`,
+    join: (channelId: string) => `/voice/channels/${channelId}/join`,
+    leave: (channelId: string) => `/voice/channels/${channelId}/leave`,
+    thread: (channelId: string) => `/voice/channels/${channelId}/thread`,
+    moderateMute: (channelId: string) => `/voice/channels/${channelId}/moderate/mute`,
+    moderateKick: (channelId: string) => `/voice/channels/${channelId}/moderate/kick`,
+    moderateMove: (channelId: string) => `/voice/channels/${channelId}/moderate/move`,
+    preferences: () => '/voice/me/preferences',
+    soundboardClips: () => '/voice/soundboard/clips',
+    soundboardClip: (id: string) => `/voice/soundboard/clips/${id}`,
+    soundboardPresign: () => '/voice/soundboard/clips/presign',
+    recordingStart: (channelId: string) => `/voice/channels/${channelId}/recording/start`,
+    recordingStop: (channelId: string) => `/voice/channels/${channelId}/recording/stop`,
+    recordings: (channelId: string) => `/voice/channels/${channelId}/recordings`,
+    recordingDownload: (recordingId: string) => `/voice/recordings/${recordingId}/download`,
+  },
 };
