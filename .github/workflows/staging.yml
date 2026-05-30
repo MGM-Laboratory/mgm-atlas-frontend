@@ -52,6 +52,8 @@ jobs:
             NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL=${{ vars.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL }}
             NEXT_PUBLIC_PMO_ENABLED=${{ vars.NEXT_PUBLIC_PMO_ENABLED_STAGING }}
             NEXT_PUBLIC_YJS_WS_URL=${{ vars.NEXT_PUBLIC_YJS_WS_URL_STAGING }}
+            NEXT_PUBLIC_VOICE_ENABLED=${{ vars.NEXT_PUBLIC_VOICE_ENABLED_STAGING }}
+            NEXT_PUBLIC_LIVEKIT_URL=${{ vars.NEXT_PUBLIC_LIVEKIT_URL_STAGING }}
           tags: |
             ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:staging
             ${{ vars.DOCKERHUB_USERNAME}}/${{ vars.IMAGE_NAME }}:staging-${{ steps.meta.outputs.ts }}

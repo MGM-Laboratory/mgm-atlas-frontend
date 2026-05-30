@@ -30,6 +30,8 @@ ARG NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL
 ARG NEXT_PUBLIC_SOCKET_URL
 ARG NEXT_PUBLIC_PMO_ENABLED
 ARG NEXT_PUBLIC_YJS_WS_URL
+ARG NEXT_PUBLIC_VOICE_ENABLED
+ARG NEXT_PUBLIC_LIVEKIT_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_KEYCLOAK_ISSUER=$NEXT_PUBLIC_KEYCLOAK_ISSUER
@@ -46,6 +48,11 @@ ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
 # the matching GH Actions variable.
 ENV NEXT_PUBLIC_PMO_ENABLED=$NEXT_PUBLIC_PMO_ENABLED
 ENV NEXT_PUBLIC_YJS_WS_URL=$NEXT_PUBLIC_YJS_WS_URL
+# Voice chat (Phase 0). VOICE_ENABLED=false is the safe default and
+# matches the backend; LIVEKIT_URL empty means the feature degrades to
+# "voice unavailable" without crashing.
+ENV NEXT_PUBLIC_VOICE_ENABLED=$NEXT_PUBLIC_VOICE_ENABLED
+ENV NEXT_PUBLIC_LIVEKIT_URL=$NEXT_PUBLIC_LIVEKIT_URL
 # Echo the public env values into the RUN command so BuildKit hashes them
 # into the layer cache key. Without this, `cache-from type=gha` happily
 # reuses a previous `pnpm build` output even after ARG/ENV values change
@@ -53,7 +60,7 @@ ENV NEXT_PUBLIC_YJS_WS_URL=$NEXT_PUBLIC_YJS_WS_URL
 # workflow and Dockerfile both passing the flag correctly. The echo
 # output is throwaway; the command *string* carrying the values is what
 # busts the cache.
-RUN echo "build inputs: app=$NEXT_PUBLIC_APP_URL api=$NEXT_PUBLIC_API_URL kc=$NEXT_PUBLIC_KEYCLOAK_ISSUER pmo=$NEXT_PUBLIC_PMO_ENABLED yjs=$NEXT_PUBLIC_YJS_WS_URL" \
+RUN echo "build inputs: app=$NEXT_PUBLIC_APP_URL api=$NEXT_PUBLIC_API_URL kc=$NEXT_PUBLIC_KEYCLOAK_ISSUER pmo=$NEXT_PUBLIC_PMO_ENABLED yjs=$NEXT_PUBLIC_YJS_WS_URL voice=$NEXT_PUBLIC_VOICE_ENABLED livekit=$NEXT_PUBLIC_LIVEKIT_URL" \
  && pnpm build
 
 # ─── Runtime ───────────────────────────────────────────────────────────────
