@@ -64,6 +64,7 @@ export const queryKeys = {
     channels: (slugOrId: string) => ['voice', 'channels', slugOrId] as const,
     lobby: ['voice', 'lobby', 'channels'] as const,
     preferences: ['voice', 'me', 'preferences'] as const,
+    thread: (voiceChannelId: string) => ['voice', 'thread', voiceChannelId] as const,
   },
 } as const;
 
