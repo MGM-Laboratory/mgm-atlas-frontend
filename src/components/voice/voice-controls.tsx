@@ -15,6 +15,7 @@ import {
   VideoOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SoundboardPanel } from './soundboard-panel';
 import { VoiceSettingsDialog } from './voice-settings-dialog';
 import {
   DropdownMenu,
@@ -163,6 +164,9 @@ export function VoiceControls() {
       </Tooltip>
 
       <div className="mx-1 h-6 w-px bg-line-2" />
+
+      {/* Soundboard */}
+      <SoundboardPanel />
 
       {/* Settings */}
       <Tooltip>

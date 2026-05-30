@@ -89,3 +89,25 @@ export interface VoiceUserPreferences {
 export type VoiceUserPreferencesPatch = Partial<
   Omit<VoiceUserPreferences, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
 >;
+
+/** Mirrors the backend's VoiceSoundboardClip row (Phase 6). */
+export interface VoiceSoundboardClip {
+  id: string;
+  name: string;
+  url: string;
+  durationMs: number;
+  createdAt: string;
+  uploadedById: string;
+  uploadedBy: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+}
+
+export interface SoundboardPresignResponse {
+  uploadUrl: string;
+  expiresIn: number;
+  s3Key: string;
+  publicUrl: string;
+}

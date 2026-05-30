@@ -107,6 +107,10 @@ export interface VoiceState {
   localVolume: Map<string, number>;
   /** Phase 5 — set of identities the local user has personally muted. */
   localMuted: Set<string>;
+  /** Phase 6 — soundboard output volume (0-2, 1 = unity). */
+  soundboardVolume: number;
+  /** Phase 6 — clip id currently playing, null when nothing is. */
+  soundboardPlayingClipId: string | null;
   ping: number | null;
   error: string | null;
 }
@@ -138,6 +142,16 @@ export interface VoiceActions {
   moderationKick: (identity: string, reason?: string) => Promise<void>;
   /** Mod: move another participant to a different voice channel. */
   moderationMove: (identity: string, targetChannelId: string) => Promise<void>;
+  // ─── Phase 6: soundboard ──────────────────────────────────────────
+  /**
+   * Play a soundboard clip into the channel for everyone to hear.
+   * Publishes the decoded audio as a separate LiveKit audio track so
+   * VAD on the mic isn't fooled by playback. Auto-unpublishes when
+   * the clip ends or another clip starts.
+   */
+  playSoundboardClip: (clip: { id: string; url: string; durationMs: number }) => Promise<void>;
+  /** Set soundboard output volume (0-2, 1 = unity). Persisted only in-memory. */
+  setSoundboardVolume: (volume: number) => void;
 }
 
 const VoiceContext = createContext<{ state: VoiceState; actions: VoiceActions } | null>(null);
@@ -158,6 +172,8 @@ const initialState: VoiceState = {
   spotlightIdentity: null,
   localVolume: new Map(),
   localMuted: new Set(),
+  soundboardVolume: 1,
+  soundboardPlayingClipId: null,
   pttActive: false,
   preferences: null,
   ping: null,
@@ -195,6 +211,23 @@ function pickPublicationAudioTrack(
 export function VoiceProvider({ children }: { children: ReactNode }) {
   const enabled = isVoiceEnabled();
   const roomRef = useRef<Room | null>(null);
+
+  // ─── Phase 6: soundboard plumbing ───────────────────────────────────
+  // One AudioContext + GainNode + MediaStreamAudioDestinationNode pair
+  // for the lifetime of the provider. We pipe each decoded buffer
+  // through the gain node into the destination, then publish the
+  // destination's MediaStreamTrack to LiveKit. AudioBuffers are
+  // cached so re-playing a clip is instant.
+  const soundboardCtxRef = useRef<{
+    ctx: AudioContext;
+    gain: GainNode;
+    dest: MediaStreamAudioDestinationNode;
+    track: MediaStreamTrack;
+    publication: LocalTrackPublication | null;
+    activeSource: AudioBufferSourceNode | null;
+    activeClipId: string | null;
+    bufferCache: Map<string, AudioBuffer>;
+  } | null>(null);
   const [state, setState] = useState<VoiceState>(initialState);
 
   const patch = useCallback((partial: Partial<VoiceState>) => {
@@ -668,6 +701,151 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     [patch, state.channelId],
   );
 
+  // ─── Phase 6: soundboard playback ───────────────────────────────────
+
+  /** Ensure the AudioContext + destination track + publication exist. */
+  const ensureSoundboardPipeline = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return null;
+    if (soundboardCtxRef.current?.publication) return soundboardCtxRef.current;
+
+    if (!soundboardCtxRef.current) {
+      const ctx = new AudioContext();
+      const gain = ctx.createGain();
+      gain.gain.value = 1;
+      const dest = ctx.createMediaStreamDestination();
+      gain.connect(dest);
+      const track = dest.stream.getAudioTracks()[0];
+      if (!track) return null;
+      soundboardCtxRef.current = {
+        ctx,
+        gain,
+        dest,
+        track,
+        publication: null,
+        activeSource: null,
+        activeClipId: null,
+        bufferCache: new Map(),
+      };
+    }
+    const ref = soundboardCtxRef.current;
+    if (!ref.publication) {
+      try {
+        // Publish the destination track as a regular audio track.
+        // LiveKit's per-source mute (Phase 5) doesn't apply here —
+        // mods can still kick someone who's abusing the soundboard.
+        ref.publication = await room.localParticipant.publishTrack(ref.track, {
+          name: 'soundboard',
+          source: Track.Source.Microphone, // closest source; UI never shows it
+        });
+      } catch {
+        return null;
+      }
+    }
+    return ref;
+  }, []);
+
+  const stopActiveSoundboard = useCallback(() => {
+    const ref = soundboardCtxRef.current;
+    if (!ref) return;
+    if (ref.activeSource) {
+      try {
+        ref.activeSource.stop();
+        ref.activeSource.disconnect();
+      } catch {
+        // already stopped
+      }
+      ref.activeSource = null;
+    }
+    ref.activeClipId = null;
+    setState((prev) => ({ ...prev, soundboardPlayingClipId: null }));
+  }, []);
+
+  const playSoundboardClip = useCallback<VoiceActions['playSoundboardClip']>(
+    async (clip) => {
+      const room = roomRef.current;
+      if (!room) return;
+      const ref = await ensureSoundboardPipeline();
+      if (!ref) return;
+
+      // Stop any clip already playing — soundboards are mono-voice.
+      stopActiveSoundboard();
+
+      let buffer = ref.bufferCache.get(clip.id);
+      if (!buffer) {
+        try {
+          const res = await fetch(clip.url, { mode: 'cors' });
+          const ab = await res.arrayBuffer();
+          buffer = await ref.ctx.decodeAudioData(ab);
+          ref.bufferCache.set(clip.id, buffer);
+        } catch (err) {
+          patch({ error: (err as Error).message ?? 'Failed to load soundboard clip.' });
+          return;
+        }
+      }
+
+      // Apply the current soundboard volume right before play. The
+      // setSoundboardVolume action updates this independently.
+      ref.gain.gain.value = state.soundboardVolume;
+
+      const source = ref.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ref.gain);
+      ref.activeSource = source;
+      ref.activeClipId = clip.id;
+      setState((prev) => ({ ...prev, soundboardPlayingClipId: clip.id }));
+
+      source.onended = () => {
+        if (soundboardCtxRef.current?.activeSource === source) {
+          stopActiveSoundboard();
+        }
+      };
+      try {
+        source.start();
+      } catch {
+        // Source already started or context suspended — try resuming.
+        try {
+          await ref.ctx.resume();
+          source.start();
+        } catch {
+          stopActiveSoundboard();
+        }
+      }
+    },
+    [ensureSoundboardPipeline, patch, state.soundboardVolume, stopActiveSoundboard],
+  );
+
+  const setSoundboardVolume = useCallback<VoiceActions['setSoundboardVolume']>(
+    (volume) => {
+      const clamped = Math.max(0, Math.min(2, volume));
+      const ref = soundboardCtxRef.current;
+      if (ref) ref.gain.gain.value = clamped;
+      setState((prev) => ({ ...prev, soundboardVolume: clamped }));
+    },
+    [],
+  );
+
+  // Tear down the soundboard pipeline whenever the room goes away.
+  useEffect(() => {
+    if (state.connectionState !== 'idle' && state.connectionState !== 'disconnected') return;
+    const ref = soundboardCtxRef.current;
+    if (!ref) return;
+    if (ref.activeSource) {
+      try {
+        ref.activeSource.stop();
+        ref.activeSource.disconnect();
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      void ref.ctx.close();
+    } catch {
+      // ignore
+    }
+    soundboardCtxRef.current = null;
+  }, [state.connectionState]);
+
   // ─── Preferences (backend-persisted) ────────────────────────────────
 
   const loadPreferences = useCallback<VoiceActions['loadPreferences']>(async () => {
@@ -1002,6 +1180,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       moderationMute,
       moderationKick,
       moderationMove,
+      playSoundboardClip,
+      setSoundboardVolume,
     }),
     [
       joinChannel,
@@ -1022,6 +1202,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       moderationMute,
       moderationKick,
       moderationMove,
+      playSoundboardClip,
+      setSoundboardVolume,
     ],
   );
 
