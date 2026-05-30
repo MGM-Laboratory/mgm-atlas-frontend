@@ -7,9 +7,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { getStoredSession } from '@/lib/auth-client';
 import { getVoiceSocket } from '@/lib/realtime/socket';
 import type { VoiceChannelWithRoster } from '@/lib/voice/types';
 import { VoiceChannelRow } from './voice-channel-row';
+import { CreateVoiceChannelButton } from './voice-channel-actions';
 import { VoiceRoom } from './voice-room';
 
 interface Props {
@@ -25,6 +27,7 @@ interface Props {
  * identical.
  */
 export function VoiceLobbyLayout({ channelId, channelName, channelTopic }: Props) {
+  const isAdmin = getStoredSession()?.user.isAdmin === true;
   const queryClient = useQueryClient();
   const lobbyQuery = useQuery({
     queryKey: queryKeys.voice.lobby,
@@ -77,8 +80,9 @@ export function VoiceLobbyLayout({ channelId, channelName, channelTopic }: Props
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 pb-3 pt-3">
-          <div className="px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
-            Channels
+          <div className="flex items-center justify-between gap-2 px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
+            <span>Channels</span>
+            {isAdmin ? <CreateVoiceChannelButton label="New lobby voice channel" /> : null}
           </div>
           <ul className="mt-1 space-y-0.5">
             {channels.map((c) => (
@@ -87,11 +91,14 @@ export function VoiceLobbyLayout({ channelId, channelName, channelTopic }: Props
                   channel={c}
                   href={`/voice/${c.id}`}
                   isActive={c.id === channelId}
+                  canManage={isAdmin}
                 />
               </li>
             ))}
             {channels.length === 0 && !lobbyQuery.isLoading ? (
-              <li className="px-2 py-1.5 text-[12px] text-ink-3">No lobby channels yet.</li>
+              <li className="px-2 py-1.5 text-[12px] text-ink-3">
+                {isAdmin ? 'No lobby channels yet. Click + to add one.' : 'No lobby channels yet.'}
+              </li>
             ) : null}
           </ul>
         </nav>

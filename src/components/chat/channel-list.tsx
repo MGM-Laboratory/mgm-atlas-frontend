@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import type { ChatChannel } from '@/lib/types';
 import type { VoiceChannelWithRoster } from '@/lib/voice/types';
 import { VoiceChannelRow } from '@/components/voice/voice-channel-row';
+import { CreateVoiceChannelButton } from '@/components/voice/voice-channel-actions';
 
 interface Props {
   projectSlug: string;
@@ -129,21 +130,32 @@ export function ChannelList({ projectSlug, projectTitle, activeChannelId, canMan
           </>
         ) : null}
 
-        {voiceEnabled && voiceChannels.length > 0 ? (
+        {voiceEnabled ? (
           <>
-            <div className="mt-4 px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
-              Voice
+            <div className="mt-4 flex items-center justify-between gap-2 px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
+              <span>Voice</span>
+              {canManage ? (
+                <CreateVoiceChannelButton projectSlugOrId={projectSlug} />
+              ) : null}
             </div>
-            <ul className="mt-1 space-y-0.5">
-              {voiceChannels.map((c) => (
-                <li key={c.id}>
-                  <VoiceChannelRow
-                    channel={c}
-                    href={`/projects/${projectSlug}/voice/${c.id}`}
-                  />
-                </li>
-              ))}
-            </ul>
+            {voiceChannels.length > 0 ? (
+              <ul className="mt-1 space-y-0.5">
+                {voiceChannels.map((c) => (
+                  <li key={c.id}>
+                    <VoiceChannelRow
+                      channel={c}
+                      href={`/projects/${projectSlug}/voice/${c.id}`}
+                      canManage={canManage}
+                      projectSlugOrId={projectSlug}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-1 px-2 py-1.5 text-[11px] text-ink-3">
+                {canManage ? 'No voice channels yet. Click + to add one.' : 'No voice channels yet.'}
+              </div>
+            )}
           </>
         ) : null}
       </nav>

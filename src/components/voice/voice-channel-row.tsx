@@ -16,12 +16,20 @@ import {
 import { cn } from '@/lib/utils';
 import { useVoice } from '@/lib/voice/voice-provider';
 import type { VoiceChannelWithRoster } from '@/lib/voice/types';
+import { VoiceChannelSettingsMenu } from './voice-channel-actions';
 
 interface Props {
   channel: VoiceChannelWithRoster;
   href: string;
   /** Highlight when this is the active route. */
   isActive?: boolean;
+  /** When true, render the per-row settings menu (edit / delete). */
+  canManage?: boolean;
+  /**
+   * Project slug for per-project channels; omitted for lobby channels
+   * (the settings menu uses lobby endpoints when missing).
+   */
+  projectSlugOrId?: string;
 }
 
 /**
@@ -37,7 +45,13 @@ interface Props {
  * does roughly this: clicking a different voice channel mid-call shows
  * a similar confirmation.
  */
-export function VoiceChannelRow({ channel, href, isActive }: Props) {
+export function VoiceChannelRow({
+  channel,
+  href,
+  isActive,
+  canManage,
+  projectSlugOrId,
+}: Props) {
   const router = useRouter();
   const { state } = useVoice();
   const isCurrent = state.channelId === channel.id;
@@ -101,58 +115,66 @@ export function VoiceChannelRow({ channel, href, isActive }: Props) {
     </>
   );
 
-  const className = cn(
-    'group flex items-start gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-120 ease-out-soft text-left w-full',
+  const innerClassName = cn(
+    'flex items-start gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-120 ease-out-soft text-left flex-1 min-w-0',
     isActive || isCurrent
       ? 'bg-surface-muted text-ink-1'
       : 'text-ink-2 hover:bg-surface-muted hover:text-ink-1',
   );
 
-  // When the user is in a different channel, render a button that
-  // opens the confirmation dialog. Otherwise render a normal Link.
-  if (isInOtherChannel) {
-    return (
-      <>
+  // The row is a flex wrapper containing (link/button) + optional
+  // settings menu. The 'group' class on the wrapper lets the menu
+  // trigger fade in on hover while staying visible when its dropdown
+  // is open. Settings menu has its own click area so it doesn't
+  // navigate when clicked.
+  return (
+    <div className="group flex items-center gap-0.5">
+      {isInOtherChannel ? (
         <button
           type="button"
-          className={className}
+          className={innerClassName}
           onClick={() => setDialogOpen(true)}
         >
           {rowContent}
         </button>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-sm">
-            <DialogTitle>Switch voice channel?</DialogTitle>
-            <DialogDescription>
-              You&apos;re currently in{' '}
-              <strong className="text-ink-1">
-                {state.channelName ?? 'another voice channel'}
-              </strong>
-              . Joining <strong className="text-ink-1">{channel.name}</strong> will
-              disconnect you from the current call.
-            </DialogDescription>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setDialogOpen(false)}>
-                Stay
-              </Button>
-              <Button
-                onClick={() => {
-                  setDialogOpen(false);
-                  router.push(href as never);
-                }}
-              >
-                Switch to {channel.name}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
+      ) : (
+        <Link href={href as never} className={innerClassName}>
+          {rowContent}
+        </Link>
+      )}
+      {canManage ? (
+        <VoiceChannelSettingsMenu
+          channel={channel}
+          projectSlugOrId={projectSlugOrId}
+        />
+      ) : null}
 
-  return (
-    <Link href={href as never} className={className}>
-      {rowContent}
-    </Link>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>Switch voice channel?</DialogTitle>
+          <DialogDescription>
+            You&apos;re currently in{' '}
+            <strong className="text-ink-1">
+              {state.channelName ?? 'another voice channel'}
+            </strong>
+            . Joining <strong className="text-ink-1">{channel.name}</strong> will
+            disconnect you from the current call.
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDialogOpen(false)}>
+              Stay
+            </Button>
+            <Button
+              onClick={() => {
+                setDialogOpen(false);
+                router.push(href as never);
+              }}
+            >
+              Switch to {channel.name}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
