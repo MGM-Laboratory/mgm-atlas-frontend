@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SoundboardPanel } from './soundboard-panel';
+import { VoiceRecordingButton } from './voice-recording-button';
 import { VoiceSettingsDialog } from './voice-settings-dialog';
 import {
   DropdownMenu,
@@ -34,7 +35,13 @@ import { useVoice } from '@/lib/voice/voice-provider';
  * Each toggle has a chevron that opens a device picker / quality menu.
  * Disabled until the room is fully connected.
  */
-export function VoiceControls() {
+export function VoiceControls({
+  channelId,
+  canModerate,
+}: {
+  channelId?: string;
+  canModerate?: boolean;
+} = {}) {
   const { state, actions } = useVoice();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const connected = state.connectionState === 'connected';
@@ -167,6 +174,11 @@ export function VoiceControls() {
 
       {/* Soundboard */}
       <SoundboardPanel />
+
+      {/* Recording (mod-only) */}
+      {canModerate && channelId ? (
+        <VoiceRecordingButton channelId={channelId} />
+      ) : null}
 
       {/* Settings */}
       <Tooltip>

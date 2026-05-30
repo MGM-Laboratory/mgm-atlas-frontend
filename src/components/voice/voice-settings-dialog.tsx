@@ -434,6 +434,12 @@ function AudioCleanupSection() {
         value={prefs.autoGainControl}
         onChange={(v) => void actions.updatePreferences({ autoGainControl: v })}
       />
+      <ToggleRow
+        label="Voice sounds"
+        description="Play subtle chimes when someone joins, leaves, or you toggle mute."
+        value={prefs.soundsEnabled}
+        onChange={(v) => void actions.updatePreferences({ soundsEnabled: v })}
+      />
     </section>
   );
 }

@@ -27,6 +27,12 @@ import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { isVoiceEnabled } from '@/lib/hooks/use-voice-enabled';
 import { getVoiceSocket } from '@/lib/realtime/socket';
+import {
+  playJoinChime,
+  playLeaveChime,
+  playMuteChime,
+  playUnmuteChime,
+} from './chimes';
 import type {
   VoiceJoinEnvelope,
   VoiceUserPreferences,
@@ -111,6 +117,22 @@ export interface VoiceState {
   soundboardVolume: number;
   /** Phase 6 — clip id currently playing, null when nothing is. */
   soundboardPlayingClipId: string | null;
+  /**
+   * Phase 7 — LiveKit Participant.connectionQuality for the local
+   * user. 'excellent' | 'good' | 'poor' | 'unknown'. Drives the
+   * wifi-bar indicator in the persistent panel.
+   */
+  connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
+  /**
+   * Phase 7 — active recording for the current channel, when one
+   * exists. null when nothing is being recorded.
+   */
+  recording: {
+    id: string;
+    startedByUserId: string;
+    startedByName: string;
+    startedAt: number;
+  } | null;
   ping: number | null;
   error: string | null;
 }
@@ -152,6 +174,11 @@ export interface VoiceActions {
   playSoundboardClip: (clip: { id: string; url: string; durationMs: number }) => Promise<void>;
   /** Set soundboard output volume (0-2, 1 = unity). Persisted only in-memory. */
   setSoundboardVolume: (volume: number) => void;
+  // ─── Phase 7: recording (mod-only) ────────────────────────────────
+  /** Mod: start a recording on the current channel. */
+  startRecording: (opts?: { audioOnly?: boolean }) => Promise<void>;
+  /** Mod: stop the active recording on the current channel. */
+  stopRecording: () => Promise<void>;
 }
 
 const VoiceContext = createContext<{ state: VoiceState; actions: VoiceActions } | null>(null);
@@ -174,6 +201,8 @@ const initialState: VoiceState = {
   localMuted: new Set(),
   soundboardVolume: 1,
   soundboardPlayingClipId: null,
+  connectionQuality: 'unknown',
+  recording: null,
   pttActive: false,
   preferences: null,
   ping: null,
@@ -211,6 +240,10 @@ function pickPublicationAudioTrack(
 export function VoiceProvider({ children }: { children: ReactNode }) {
   const enabled = isVoiceEnabled();
   const roomRef = useRef<Room | null>(null);
+  // Phase 7 — chimes pull their on/off from preferences, but room
+  // event handlers are registered once at connect time. Keep a ref so
+  // the handlers see the latest pref without re-binding.
+  const roomPrefsRef = useRef<VoiceUserPreferences | null>(null);
 
   // ─── Phase 6: soundboard plumbing ───────────────────────────────────
   // One AudioContext + GainNode + MediaStreamAudioDestinationNode pair
@@ -392,8 +425,19 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       roomRef.current = room;
 
       room
-        .on(RoomEvent.ParticipantConnected, () => refreshParticipants(room))
-        .on(RoomEvent.ParticipantDisconnected, () => refreshParticipants(room))
+        .on(RoomEvent.ParticipantConnected, () => {
+          // Chime — guarded by saved pref + only after we've finished
+          // the initial connect. We use a ref because state.preferences
+          // can change between events.
+          const p = roomPrefsRef.current;
+          if (p?.soundsEnabled !== false) playJoinChime();
+          refreshParticipants(room);
+        })
+        .on(RoomEvent.ParticipantDisconnected, () => {
+          const p = roomPrefsRef.current;
+          if (p?.soundsEnabled !== false) playLeaveChime();
+          refreshParticipants(room);
+        })
         .on(RoomEvent.ActiveSpeakersChanged, () => refreshParticipants(room))
         .on(RoomEvent.TrackMuted, () => refreshParticipants(room))
         .on(RoomEvent.TrackUnmuted, () => refreshParticipants(room))
@@ -411,6 +455,20 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
           }));
           refreshParticipants(room);
         })
+        .on(
+          RoomEvent.ConnectionQualityChanged,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (quality: any, participant: any) => {
+            // Only act on the local participant — peers' quality is
+            // less actionable for the UI.
+            if (participant?.identity !== room.localParticipant.identity) return;
+            const q: 'excellent' | 'good' | 'poor' | 'unknown' =
+              quality === 'excellent' || quality === 'good' || quality === 'poor'
+                ? quality
+                : 'unknown';
+            patch({ connectionQuality: q });
+          },
+        )
         .on(RoomEvent.Reconnecting, () => patch({ connectionState: 'reconnecting' }))
         .on(RoomEvent.Reconnected, () => patch({ connectionState: 'connected' }))
         .on(RoomEvent.Disconnected, () => {
@@ -477,7 +535,12 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     const enableMic = state.micMuted; // currently muted → enabling
     await room.localParticipant.setMicrophoneEnabled(enableMic);
     patch({ micMuted: !enableMic, deafened: !enableMic ? state.deafened : false });
-  }, [patch, state.micMuted, state.deafened]);
+    // Phase 7 — local feedback chime, prefs-gated.
+    if (state.preferences?.soundsEnabled !== false) {
+      if (enableMic) playUnmuteChime();
+      else playMuteChime();
+    }
+  }, [patch, state.micMuted, state.deafened, state.preferences]);
 
   const toggleDeafen = useCallback<VoiceActions['toggleDeafen']>(async () => {
     const room = roomRef.current;
@@ -700,6 +763,34 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     },
     [patch, state.channelId],
   );
+
+  // ─── Phase 7: recording (mod-only) ──────────────────────────────────
+
+  const startRecording = useCallback<VoiceActions['startRecording']>(
+    async (opts) => {
+      const channelId = state.channelId;
+      if (!channelId) return;
+      try {
+        await api(apiPaths.voice.recordingStart(channelId), {
+          method: 'POST',
+          body: { audioOnly: opts?.audioOnly ?? false },
+        });
+      } catch (err) {
+        patch({ error: (err as Error).message ?? 'Failed to start recording.' });
+      }
+    },
+    [patch, state.channelId],
+  );
+
+  const stopRecording = useCallback<VoiceActions['stopRecording']>(async () => {
+    const channelId = state.channelId;
+    if (!channelId) return;
+    try {
+      await api(apiPaths.voice.recordingStop(channelId), { method: 'POST' });
+    } catch (err) {
+      patch({ error: (err as Error).message ?? 'Failed to stop recording.' });
+    }
+  }, [patch, state.channelId]);
 
   // ─── Phase 6: soundboard playback ───────────────────────────────────
 
@@ -998,6 +1089,72 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     };
   }, [enabled, patch, refreshParticipants, teardownRoom, state.preferences]);
 
+  // Mirror state.preferences into a ref so RoomEvent handlers (which
+  // capture stable closures) can read the latest soundsEnabled flag.
+  useEffect(() => {
+    roomPrefsRef.current = state.preferences;
+  }, [state.preferences]);
+
+  // ─── Phase 7: ping polling ───────────────────────────────────────────
+  // LiveKit exposes RTT to the SFU on Room.engine.client.rtt (number,
+  // ms) once the data channel is open. We sample it every 3s while
+  // connected and write to state.ping. Skips when no room or
+  // disconnected — the value is cleared by initialState on teardown.
+  useEffect(() => {
+    if (state.connectionState !== 'connected') return;
+    const room = roomRef.current;
+    if (!room) return;
+    const tick = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const engine = (room as any).engine;
+      const rtt: number | undefined = engine?.client?.rtt;
+      if (typeof rtt === 'number' && Number.isFinite(rtt)) {
+        setState((prev) => (prev.ping === rtt ? prev : { ...prev, ping: rtt }));
+      }
+    };
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => clearInterval(id);
+  }, [state.connectionState]);
+
+  // ─── Phase 7: recording lifecycle events ─────────────────────────────
+  // Listens for the channel-room voice.recording.* events emitted by
+  // the backend. Updates state.recording so the persistent panel +
+  // room header can render the red REC badge in real time.
+  useEffect(() => {
+    if (!enabled) return;
+    if (state.connectionState !== 'connected' || !state.channelId) return;
+    const socket = getVoiceSocket();
+    if (!socket) return;
+    const onStarted = (payload: {
+      channelId: string;
+      recordingId: string;
+      startedByUserId: string;
+      startedByName: string;
+    }) => {
+      if (payload.channelId !== state.channelId) return;
+      setState((prev) => ({
+        ...prev,
+        recording: {
+          id: payload.recordingId,
+          startedByUserId: payload.startedByUserId,
+          startedByName: payload.startedByName,
+          startedAt: Date.now(),
+        },
+      }));
+    };
+    const onStopped = (payload: { channelId: string }) => {
+      if (payload.channelId !== state.channelId) return;
+      setState((prev) => ({ ...prev, recording: null }));
+    };
+    socket.on('voice.recording.started', onStarted);
+    socket.on('voice.recording.stopped', onStopped);
+    return () => {
+      socket.off('voice.recording.started', onStarted);
+      socket.off('voice.recording.stopped', onStopped);
+    };
+  }, [enabled, state.connectionState, state.channelId]);
+
   // ─── Push-to-talk key handler ───────────────────────────────────────
 
   useEffect(() => {
@@ -1182,6 +1339,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       moderationMove,
       playSoundboardClip,
       setSoundboardVolume,
+      startRecording,
+      stopRecording,
     }),
     [
       joinChannel,
@@ -1204,6 +1363,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       moderationMove,
       playSoundboardClip,
       setSoundboardVolume,
+      startRecording,
+      stopRecording,
     ],
   );
 

@@ -1,8 +1,9 @@
 'use client';
 
-import { Loader2, Mic, MicOff, PhoneOff, Wifi, WifiOff } from 'lucide-react';
+import { CircleDot, Loader2, Mic, MicOff, PhoneOff, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { useVoice } from '@/lib/voice/voice-provider';
 
 /**
@@ -10,9 +11,11 @@ import { useVoice } from '@/lib/voice/voice-provider';
  * so it survives any navigation within the authenticated area. Renders
  * nothing while the user is idle.
  *
- * Discord-equivalent: the panel above the user-card in the bottom-left
- * sidebar. Shows the channel + connection state + quick controls. The
- * full voice room view (grid of tiles) lives at its own route.
+ * Phase 7 polish:
+ *   - Connection-quality bars (3 = excellent, 2 = good, 1 = poor)
+ *     replace the generic Wifi icon.
+ *   - Ping (RTT) shown next to the participant count.
+ *   - A red 🔴 REC pill appears when state.recording is set.
  */
 export function VoiceConnectedPanel() {
   const { state, actions } = useVoice();
@@ -36,11 +39,22 @@ export function VoiceConnectedPanel() {
             strokeWidth={2.25}
           />
         ) : (
-          <Wifi className="h-4 w-4 text-brand-green" strokeWidth={2.25} />
+          <ConnectionBars quality={state.connectionQuality} />
         )}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-medium text-ink-1">
-            {state.channelName ?? 'Connecting…'}
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-xs font-medium text-ink-1">
+              {state.channelName ?? 'Connecting…'}
+            </span>
+            {state.recording ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-brand-red px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white"
+                title={`Recording started by ${state.recording.startedByName}`}
+              >
+                <CircleDot className="h-2 w-2 animate-pulse" strokeWidth={3} />
+                REC
+              </span>
+            ) : null}
           </div>
           <div className="text-[10px] uppercase tracking-wide text-ink-3">
             {state.connectionState === 'connected'
@@ -91,6 +105,45 @@ export function VoiceConnectedPanel() {
           <TooltipContent>Disconnect</TooltipContent>
         </Tooltip>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Discord-style wifi bars. quality:
+ *   excellent → 3 bars green
+ *   good      → 2 bars green
+ *   poor      → 1 bar yellow/red
+ *   unknown   → grey Wifi icon (haven't received a quality event yet)
+ */
+function ConnectionBars({
+  quality,
+}: {
+  quality: 'excellent' | 'good' | 'poor' | 'unknown';
+}) {
+  if (quality === 'unknown') {
+    return <Wifi className="h-4 w-4 text-ink-3" strokeWidth={2.25} />;
+  }
+  const activeBars = quality === 'excellent' ? 3 : quality === 'good' ? 2 : 1;
+  const color =
+    quality === 'excellent' || quality === 'good'
+      ? 'bg-brand-green'
+      : 'bg-brand-yellow';
+  return (
+    <div
+      className="flex h-4 items-end gap-px"
+      title={`Connection quality: ${quality}`}
+    >
+      {[1, 2, 3].map((i) => (
+        <span
+          key={i}
+          className={cn(
+            'w-1 rounded-sm',
+            i === 1 ? 'h-2' : i === 2 ? 'h-3' : 'h-4',
+            i <= activeBars ? color : 'bg-line-2',
+          )}
+        />
+      ))}
     </div>
   );
 }

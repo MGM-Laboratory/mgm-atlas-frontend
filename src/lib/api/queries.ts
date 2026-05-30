@@ -66,6 +66,7 @@ export const queryKeys = {
     preferences: ['voice', 'me', 'preferences'] as const,
     thread: (voiceChannelId: string) => ['voice', 'thread', voiceChannelId] as const,
     soundboard: ['voice', 'soundboard', 'clips'] as const,
+    recordings: (channelId: string) => ['voice', 'recordings', channelId] as const,
   },
 } as const;
 

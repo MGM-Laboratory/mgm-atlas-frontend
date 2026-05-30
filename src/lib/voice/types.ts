@@ -82,6 +82,8 @@ export interface VoiceUserPreferences {
   shortcutMute: string | null;
   shortcutDeafen: string | null;
   shortcutDisconnect: string | null;
+  /** Phase 7 — join/leave/mute chimes. Defaults true. */
+  soundsEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
