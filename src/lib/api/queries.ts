@@ -60,6 +60,10 @@ export const queryKeys = {
     whiteboards: (slug: string) => ['pmo', 'whiteboards', slug] as const,
     whiteboard: (slug: string, wbId: string) => ['pmo', 'whiteboard', slug, wbId] as const,
   },
+  voice: {
+    channels: (slugOrId: string) => ['voice', 'channels', slugOrId] as const,
+    lobby: ['voice', 'lobby', 'channels'] as const,
+  },
 } as const;
 
 export type ProjectListFilters = {

@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { useVoiceEnabled } from '@/lib/hooks/use-voice-enabled';
+import { getVoiceSocket } from '@/lib/realtime/socket';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,6 +19,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { ChatChannel } from '@/lib/types';
+import type { VoiceChannelWithRoster } from '@/lib/voice/types';
+import { VoiceChannelRow } from '@/components/voice/voice-channel-row';
 
 interface Props {
   projectSlug: string;
@@ -26,15 +30,58 @@ interface Props {
 }
 
 export function ChannelList({ projectSlug, projectTitle, activeChannelId, canManage }: Props) {
+  const voiceEnabled = useVoiceEnabled();
+  const queryClient = useQueryClient();
   const channelsQuery = useQuery({
     queryKey: queryKeys.chat.channels(projectSlug),
     queryFn: () => api<ChatChannel[]>(apiPaths.chat.channels(projectSlug)),
     refetchOnWindowFocus: false,
   });
 
+  const voiceChannelsQuery = useQuery({
+    queryKey: queryKeys.voice.channels(projectSlug),
+    queryFn: () =>
+      api<{ items: VoiceChannelWithRoster[] }>(apiPaths.voice.channels(projectSlug)).then(
+        (r) => r.items,
+      ),
+    refetchOnWindowFocus: false,
+    enabled: voiceEnabled,
+  });
+
+  // Subscribe to project-level voice events so the roster / channel
+  // list stays live. The socket invalidates the voice-channels query
+  // on every roster / channel change — TanStack Query then refetches.
+  React.useEffect(() => {
+    if (!voiceEnabled) return;
+    const socket = getVoiceSocket();
+    if (!socket) return;
+    const invalidate = () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.voice.channels(projectSlug),
+      });
+    };
+    const onConnect = () => {
+      socket.emit('voice:subscribe.project', { projectId: projectSlug });
+    };
+    if (socket.connected) onConnect();
+    socket.on('connect', onConnect);
+    socket.on('voice.roster.update', invalidate);
+    socket.on('voice.channel.created', invalidate);
+    socket.on('voice.channel.updated', invalidate);
+    socket.on('voice.channel.archived', invalidate);
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('voice.roster.update', invalidate);
+      socket.off('voice.channel.created', invalidate);
+      socket.off('voice.channel.updated', invalidate);
+      socket.off('voice.channel.archived', invalidate);
+    };
+  }, [voiceEnabled, projectSlug, queryClient]);
+
   const channels = channelsQuery.data ?? [];
   const active = channels.filter((c) => !c.isArchived);
   const archived = channels.filter((c) => c.isArchived);
+  const voiceChannels = (voiceChannelsQuery.data ?? []).filter((c) => !c.archivedAt);
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-surface-muted/40">
@@ -77,6 +124,24 @@ export function ChannelList({ projectSlug, projectTitle, activeChannelId, canMan
                   projectSlug={projectSlug}
                   active={c.id === activeChannelId}
                 />
+              ))}
+            </ul>
+          </>
+        ) : null}
+
+        {voiceEnabled && voiceChannels.length > 0 ? (
+          <>
+            <div className="mt-4 px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
+              Voice
+            </div>
+            <ul className="mt-1 space-y-0.5">
+              {voiceChannels.map((c) => (
+                <li key={c.id}>
+                  <VoiceChannelRow
+                    channel={c}
+                    href={`/projects/${projectSlug}/voice/${c.id}`}
+                  />
+                </li>
               ))}
             </ul>
           </>
