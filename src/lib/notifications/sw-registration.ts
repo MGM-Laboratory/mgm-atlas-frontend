@@ -61,3 +61,27 @@ export function onNotificationClick(
   navigator.serviceWorker.addEventListener('message', listener);
   return () => navigator.serviceWorker.removeEventListener('message', listener);
 }
+
+/**
+ * Subscribe to the SW's quick-reply-sent channel — fires when a user
+ * submits an inline reply from the OS notification banner and the
+ * backend POST succeeded. The page uses this to refresh the relevant
+ * chat thread immediately so the sent message lands without a polling
+ * delay (the socket would already deliver it, but this is belt-and-braces
+ * for tabs that aren't connected to the chat namespace).
+ */
+export function onQuickReplySent(
+  handler: (msg: { link: string; notificationId?: string }) => void,
+): () => void {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return () => {};
+
+  const listener = (event: MessageEvent) => {
+    const data = event.data as
+      | { type?: string; link?: string; notificationId?: string }
+      | undefined;
+    if (!data || data.type !== 'atlas:quick-reply-sent') return;
+    handler({ link: data.link ?? '', notificationId: data.notificationId });
+  };
+  navigator.serviceWorker.addEventListener('message', listener);
+  return () => navigator.serviceWorker.removeEventListener('message', listener);
+}

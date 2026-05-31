@@ -31,6 +31,9 @@ interface Props {
   onTyping?: () => void;
   /** Called when the user clears the draft or sends. */
   onTypingStop?: () => void;
+  /** Auto-focus the textarea on mount — used by the SW fallback when
+   *  Atlas is opened from a notification without inline-reply support. */
+  autoFocus?: boolean;
 }
 
 interface PendingAttachment {
@@ -69,6 +72,7 @@ export function MessageComposer({
   onClearReply,
   onTyping,
   onTypingStop,
+  autoFocus,
 }: Props) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = React.useState('');
@@ -104,6 +108,18 @@ export function MessageComposer({
   React.useEffect(() => {
     if (replyTo) textareaRef.current?.focus();
   }, [replyTo]);
+
+  // One-shot auto-focus for the SW fallback path. The page passes
+  // `autoFocus` when the URL includes `?focus=input`, which the SW
+  // appends on browsers that can't surface inline reply (Safari,
+  // Firefox). This keeps the click-to-reply path as fast as possible.
+  React.useEffect(() => {
+    if (autoFocus) {
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+    // Only run once at mount per autoFocus value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ready = attachments.every((a) => a.url && !a.error);
   const hasContent = draft.trim().length > 0 || attachments.length > 0;

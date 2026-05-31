@@ -3,8 +3,14 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { getStoredSession } from '@/lib/auth-client';
 import { getNotificationsSocket } from '@/lib/realtime/socket';
-import { onNotificationClick, registerServiceWorker } from '@/lib/notifications/sw-registration';
+import {
+  onNotificationClick,
+  onQuickReplySent,
+  registerServiceWorker,
+} from '@/lib/notifications/sw-registration';
+import { syncSessionToIdb } from '@/lib/notifications/session-bridge';
 import { EnableBanner } from './enable-banner';
 
 interface ServerNotification {
@@ -37,6 +43,12 @@ export function NotificationsClient() {
 
   React.useEffect(() => {
     void registerServiceWorker();
+    // Mirror the current sessionId to IndexedDB so the SW can authenticate
+    // the quick-reply POST from inside a notification's inline-reply UI.
+    // Best-effort and re-runs on every authenticated page load so sessionId
+    // rotation (re-login etc.) keeps the SW in sync.
+    const session = getStoredSession();
+    void syncSessionToIdb(session?.sessionId ?? null);
   }, []);
 
   React.useEffect(() => {
@@ -79,6 +91,18 @@ export function NotificationsClient() {
     });
     return stop;
   }, [router]);
+
+  // Refresh the bell + the chat thread cache after a successful inline
+  // reply, so the sent message lands instantly on this tab even though
+  // the SW was the one who submitted it. The chat socket would deliver
+  // it eventually; this just trims the perceived latency.
+  React.useEffect(() => {
+    const stop = onQuickReplySent(() => {
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+      qc.invalidateQueries({ queryKey: ['chat'] });
+    });
+    return stop;
+  }, [qc]);
 
   return <EnableBanner />;
 }
