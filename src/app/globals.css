@@ -193,6 +193,115 @@
   animation: chat-pin-bounce 520ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ─── BlockNote code block (PMO notes) ────────────────────────────────── */
+/* IDE-style dark surface with a language selector top-left and copy button
+   top-right. Scoped tightly to the codeBlock content type so it can't bleed
+   into other blocks. */
+.bn-block-content[data-content-type="codeBlock"] {
+  position: relative;
+  background-color: #0d1117;
+  color: #e6edf3;
+  border-radius: 10px;
+  margin: 0.5em 0;
+  overflow: hidden;
+}
+.bn-block-content[data-content-type="codeBlock"] > pre,
+.bn-block-content[data-content-type="codeBlock"] pre {
+  background: transparent !important;
+  color: inherit !important;
+  margin: 0;
+  padding: 44px 16px 16px 16px;
+  font-family: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  tab-size: 2;
+  overflow-x: auto;
+}
+.bn-block-content[data-content-type="codeBlock"] pre code,
+.bn-block-content[data-content-type="codeBlock"] code {
+  background: transparent !important;
+  color: inherit !important;
+  font-family: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+/* Shiki tokens — let them through, but keep their colors visible on dark bg */
+.bn-block-content[data-content-type="codeBlock"] .shiki,
+.bn-block-content[data-content-type="codeBlock"] .shiki span {
+  background-color: transparent !important;
+}
+
+/* Language selector — top-left chip */
+.bn-block-content[data-content-type="codeBlock"] > div:first-child {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 2;
+}
+.bn-block-content[data-content-type="codeBlock"] > div > select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #e6edf3;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-family: var(--font-geist), system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 22px 4px 8px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+  background-image: linear-gradient(45deg, transparent 50%, #9aa1ad 50%),
+                    linear-gradient(135deg, #9aa1ad 50%, transparent 50%);
+  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.bn-block-content[data-content-type="codeBlock"]:hover > div > select,
+.bn-block-content[data-content-type="codeBlock"] > div > select:focus {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+.bn-block-content[data-content-type="codeBlock"] > div > select > option {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* Copy button — top-right chip injected by the editor effect */
+.bn-block-content[data-content-type="codeBlock"] > .bn-code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  appearance: none;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #e6edf3;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-family: var(--font-geist), system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.bn-block-content[data-content-type="codeBlock"]:hover > .bn-code-copy-btn,
+.bn-block-content[data-content-type="codeBlock"] > .bn-code-copy-btn:focus {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+.bn-block-content[data-content-type="codeBlock"] > .bn-code-copy-btn.is-copied {
+  background-color: rgba(15, 134, 87, 0.28);
+  border-color: rgba(15, 134, 87, 0.55);
+  color: #b7eccd;
+  opacity: 1;
+}
+
 /* ─── Reduced motion ──────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

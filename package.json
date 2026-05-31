@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@blocknote/ariakit": "0.51.3",
+    "@blocknote/code-block": "0.51.3",
     "@blocknote/core": "0.51.3",
     "@blocknote/react": "0.51.3",
     "@excalidraw/excalidraw": "0.18.1",

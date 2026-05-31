@@ -5,7 +5,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, WifiOff } from 'lucide-react';
 import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/ariakit';
-import type { PartialBlock } from '@blocknote/core';
+import {
+  BlockNoteSchema,
+  createCodeBlockSpec,
+  defaultBlockSpecs,
+  type PartialBlock,
+} from '@blocknote/core';
+import { codeBlockOptions } from '@blocknote/code-block';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/ariakit/style.css';
 import { api } from '@/lib/api/client';
@@ -76,6 +82,31 @@ function asBlocks(snapshot: unknown): PartialBlock[] | undefined {
   return Array.isArray(snapshot) && snapshot.length ? (snapshot as PartialBlock[]) : undefined;
 }
 
+// Schema with a code block that has a language selector (Shiki syntax
+// highlighting + ~50 languages from @blocknote/code-block). Default is "text",
+// which means no highlighting until the author picks a language — that's the
+// "auto / plain" entry shown first in the dropdown.
+const buildSupportedLanguages = () => {
+  const upstream = codeBlockOptions.supportedLanguages ?? {};
+  const rest = { ...(upstream as Record<string, { name: string; aliases?: string[] }>) };
+  delete rest.text;
+  return {
+    text: { name: 'Auto / Plain text', aliases: ['plain', 'plaintext'] },
+    ...rest,
+  };
+};
+
+const noteSchema = BlockNoteSchema.create({
+  blockSpecs: {
+    ...defaultBlockSpecs,
+    codeBlock: createCodeBlockSpec({
+      ...codeBlockOptions,
+      defaultLanguage: 'text',
+      supportedLanguages: buildSupportedLanguages(),
+    }),
+  },
+});
+
 function BlockNoteEditor({
   projectSlug,
   noteId,
@@ -128,13 +159,14 @@ function BlockNoteEditor({
   const editor = useCreateBlockNote(
     conn
       ? {
+          schema: noteSchema,
           collaboration: {
             provider: conn.provider,
             fragment: conn.doc.getXmlFragment('document-store'),
             user: { name: user.name, color: cursorColorFor(user.id) },
           },
         }
-      : { initialContent },
+      : { schema: noteSchema, initialContent },
   );
 
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -152,12 +184,74 @@ function BlockNoteEditor({
 
   React.useEffect(() => () => clearTimeout(saveTimer.current), []);
 
+  // Attach a copy button to each rendered code block. BlockNote doesn't ship
+  // one, so we observe the editor DOM and inject a button into the block
+  // wrapper. The button reads text from the `<code>` element so it stays
+  // accurate as the user edits.
+  const editorWrapRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    const root = editorWrapRef.current;
+    if (!root) return;
+    const attach = (block: HTMLElement) => {
+      if (block.querySelector(':scope > .bn-code-copy-btn')) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bn-code-copy-btn';
+      btn.contentEditable = 'false';
+      btn.setAttribute('aria-label', 'Copy code');
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const code = block.querySelector('pre code') as HTMLElement | null;
+        const text = code?.innerText ?? '';
+        const done = () => {
+          btn.textContent = 'Copied';
+          btn.classList.add('is-copied');
+          window.setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('is-copied');
+          }, 1400);
+        };
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(() => {});
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand('copy');
+            done();
+          } finally {
+            document.body.removeChild(ta);
+          }
+        }
+      });
+      block.appendChild(btn);
+    };
+    const scan = () => {
+      root
+        .querySelectorAll<HTMLElement>('.bn-block-content[data-content-type="codeBlock"]')
+        .forEach(attach);
+    };
+    scan();
+    const obs = new MutationObserver(scan);
+    obs.observe(root, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-end px-1 pb-2">
         <StatusPill status={status} />
       </div>
-      <div className="flex-1 overflow-auto rounded-lg border border-line bg-white">
+      <div
+        ref={editorWrapRef}
+        className="flex-1 overflow-auto rounded-lg border border-line bg-white"
+      >
         <BlockNoteView editor={editor} theme="light" onChange={persist} className="py-3" />
       </div>
     </div>
