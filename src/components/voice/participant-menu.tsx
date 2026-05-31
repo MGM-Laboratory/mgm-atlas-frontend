@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ExternalLink, Mic, MicOff, User2, VolumeX, X, ArrowRightCircle } from 'lucide-react';
+import { ExternalLink, Hand, Mic, MicOff, MicVocal, User2, VolumeX, X, ArrowRightCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
@@ -218,6 +218,24 @@ export function ParticipantMenu({
                       </DropdownMenuItem>
                     ))
                   )}
+                </>
+              ) : null}
+              {state.channelKind === 'STAGE' ? (
+                <>
+                  <DropdownMenuItem
+                    onSelect={() => void actions.stagePromote(participant.identity)}
+                    className="gap-2 text-[13px]"
+                  >
+                    <MicVocal className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    Promote to speaker
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => void actions.stageDemote(participant.identity)}
+                    className="gap-2 text-[13px]"
+                  >
+                    <Hand className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    Move to audience
+                  </DropdownMenuItem>
                 </>
               ) : null}
               <DropdownMenuItem

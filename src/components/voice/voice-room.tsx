@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useVoice } from '@/lib/voice/voice-provider';
 import { ParticipantTile } from './participant-tile';
+import { StageRoom } from './stage-room';
 import { VoiceControls } from './voice-controls';
 
 /**
@@ -97,6 +98,19 @@ export function VoiceRoom({
           Switch to {channelName}
         </Button>
       </div>
+    );
+  }
+
+  // Phase 8 — stage channels get their own layout (speakers + audience).
+  if (state.channelKind === 'STAGE' && state.channelId === channelId) {
+    return (
+      <StageRoom
+        channelId={channelId}
+        channelName={channelName}
+        projectId={projectId}
+        projectSlugOrId={projectSlugOrId ?? null}
+        canModerate={!!canModerate}
+      />
     );
   }
 

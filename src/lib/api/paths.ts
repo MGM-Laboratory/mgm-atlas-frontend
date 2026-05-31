@@ -266,6 +266,12 @@ export const apiPaths = {
     moderateMute: (channelId: string) => `/voice/channels/${channelId}/moderate/mute`,
     moderateKick: (channelId: string) => `/voice/channels/${channelId}/moderate/kick`,
     moderateMove: (channelId: string) => `/voice/channels/${channelId}/moderate/move`,
+    /** Phase 8 — stage channel actions. */
+    handRaise: (channelId: string) => `/voice/channels/${channelId}/hand/raise`,
+    handLower: (channelId: string) => `/voice/channels/${channelId}/hand/lower`,
+    handQueue: (channelId: string) => `/voice/channels/${channelId}/hand/queue`,
+    stagePromote: (channelId: string) => `/voice/channels/${channelId}/stage/promote`,
+    stageDemote: (channelId: string) => `/voice/channels/${channelId}/stage/demote`,
     preferences: () => '/voice/me/preferences',
     soundboardClips: () => '/voice/soundboard/clips',
     soundboardClip: (id: string) => `/voice/soundboard/clips/${id}`,

@@ -5,12 +5,31 @@
  */
 
 export type VoiceAudioQuality = 'LOW' | 'STANDARD' | 'HIGH';
+/** Phase 8: STANDARD = open mic. STAGE = speaker/audience model. */
+export type VoiceChannelKind = 'STANDARD' | 'STAGE';
+/** Phase 8: SPEAKER (default) or AUDIENCE (stage channel non-mod default). */
+export type VoiceParticipantRole = 'SPEAKER' | 'AUDIENCE';
 
 export interface VoiceParticipantPublic {
   id: string;
   userId: string;
   joinedAt: string;
   mutedByMod: boolean;
+  /** Phase 8 */
+  role?: VoiceParticipantRole;
+  /** Phase 8 — ISO timestamp if hand currently raised, null otherwise. */
+  handRaisedAt?: string | null;
+  user: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+}
+
+/** Phase 8 — entry in the hand-raise queue. */
+export interface StageHandQueueEntry {
+  userId: string;
+  handRaisedAt: string;
   user: {
     id: string;
     name: string;
@@ -27,6 +46,8 @@ export interface VoiceChannelPublic {
   /** null = unlimited */
   userLimit: number | null;
   audioQuality: VoiceAudioQuality;
+  /** Phase 8 — STANDARD (open mic) or STAGE. */
+  kind: VoiceChannelKind;
   isDefault: boolean;
   sortIndex: number;
   permissions: Record<string, unknown>;
@@ -59,6 +80,8 @@ export interface VoiceJoinEnvelope {
     id: string;
     name: string;
     audioQuality: VoiceAudioQuality;
+    /** Phase 8 — server tells us the kind so client can render the right layout. */
+    kind?: VoiceChannelKind;
   };
 }
 
