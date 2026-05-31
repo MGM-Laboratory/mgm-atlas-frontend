@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Hash, ArrowLeft, Radio, Pin } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -36,6 +37,12 @@ export function ChatLayout({
 }: Props) {
   const [replyTo, setReplyTo] = React.useState<ChatMessage | null>(null);
   const [pinsOpen, setPinsOpen] = React.useState(false);
+  // SW fallback path appends `?focus=input` when opening a chat from a
+  // notification on a browser that can't show inline reply (Safari /
+  // Firefox). We thread this to the composer so the user lands with
+  // the textarea focused, mirroring the inline-reply experience.
+  const searchParams = useSearchParams();
+  const autoFocusComposer = searchParams?.get('focus') === 'input';
 
   // Reuse the channels query the sidebar already fetches.
   const channelsQuery = useQuery({
@@ -129,6 +136,7 @@ export function ChatLayout({
           onClearReply={() => setReplyTo(null)}
           onTyping={sendTypingPing}
           onTypingStop={sendTypingStop}
+          autoFocus={autoFocusComposer}
         />
       </section>
 
