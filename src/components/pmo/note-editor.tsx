@@ -11,7 +11,6 @@ import {
   defaultBlockSpecs,
   type PartialBlock,
 } from '@blocknote/core';
-import { codeBlockOptions } from '@blocknote/code-block';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/ariakit/style.css';
 import { api } from '@/lib/api/client';
@@ -82,27 +81,62 @@ function asBlocks(snapshot: unknown): PartialBlock[] | undefined {
   return Array.isArray(snapshot) && snapshot.length ? (snapshot as PartialBlock[]) : undefined;
 }
 
-// Schema with a code block that has a language selector (Shiki syntax
-// highlighting + ~50 languages from @blocknote/code-block). Default is "text",
-// which means no highlighting until the author picks a language — that's the
-// "auto / plain" entry shown first in the dropdown.
-const buildSupportedLanguages = () => {
-  const upstream = codeBlockOptions.supportedLanguages ?? {};
-  const rest = { ...(upstream as Record<string, { name: string; aliases?: string[] }>) };
-  delete rest.text;
-  return {
-    text: { name: 'Auto / Plain text', aliases: ['plain', 'plaintext'] },
-    ...rest,
-  };
+// Code block schema. We deliberately do NOT use @blocknote/code-block's
+// Shiki-based highlighter — its `createHighlighter` loads the full Shiki
+// engine + every grammar at first-block render and was freezing the main
+// thread on lower-end devices (PMO notes crash report, 2026-05-31).
+//
+// Trade-off: no syntax token colours. The block still gets the IDE-style
+// dark surface (via globals.css), a language dropdown (rendered by
+// BlockNote core from this `supportedLanguages` list), and the
+// MutationObserver-injected copy button. Highlighting can return later
+// behind a dynamic `import('@blocknote/code-block')` triggered only
+// when the user actually picks a non-`text` language.
+//
+// Existing notes that have language="rust" etc. continue to render —
+// BlockNote falls back to plain text if the language isn't in our list.
+const SUPPORTED_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = {
+  text: { name: 'Auto / Plain text', aliases: ['plain', 'plaintext'] },
+  bash: { name: 'Bash', aliases: ['sh', 'shell', 'zsh'] },
+  c: { name: 'C' },
+  cpp: { name: 'C++', aliases: ['c++'] },
+  csharp: { name: 'C#', aliases: ['cs'] },
+  css: { name: 'CSS' },
+  diff: { name: 'Diff' },
+  dockerfile: { name: 'Dockerfile', aliases: ['docker'] },
+  go: { name: 'Go', aliases: ['golang'] },
+  graphql: { name: 'GraphQL' },
+  html: { name: 'HTML' },
+  ini: { name: 'INI' },
+  java: { name: 'Java' },
+  javascript: { name: 'JavaScript', aliases: ['js'] },
+  json: { name: 'JSON' },
+  kotlin: { name: 'Kotlin', aliases: ['kt'] },
+  lua: { name: 'Lua' },
+  markdown: { name: 'Markdown', aliases: ['md'] },
+  php: { name: 'PHP' },
+  python: { name: 'Python', aliases: ['py'] },
+  ruby: { name: 'Ruby', aliases: ['rb'] },
+  rust: { name: 'Rust', aliases: ['rs'] },
+  scss: { name: 'SCSS', aliases: ['sass'] },
+  sql: { name: 'SQL' },
+  swift: { name: 'Swift' },
+  toml: { name: 'TOML' },
+  tsx: { name: 'TSX' },
+  typescript: { name: 'TypeScript', aliases: ['ts'] },
+  vue: { name: 'Vue' },
+  xml: { name: 'XML' },
+  yaml: { name: 'YAML', aliases: ['yml'] },
 };
 
 const noteSchema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     codeBlock: createCodeBlockSpec({
-      ...codeBlockOptions,
       defaultLanguage: 'text',
-      supportedLanguages: buildSupportedLanguages(),
+      indentLineWithTab: true,
+      supportedLanguages: SUPPORTED_LANGUAGES,
+      // No `createHighlighter` — the Shiki engine load was the freeze cause.
     }),
   },
 });
