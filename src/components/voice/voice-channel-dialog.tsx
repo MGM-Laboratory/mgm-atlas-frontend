@@ -22,7 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { VoiceAudioQuality, VoiceChannelPublic } from '@/lib/voice/types';
+import type {
+  VoiceAudioQuality,
+  VoiceChannelKind,
+  VoiceChannelPublic,
+} from '@/lib/voice/types';
 
 /**
  * Shared create/edit dialog for voice channels. The same form fields
@@ -62,6 +66,7 @@ export function VoiceChannelDialog(props: Props) {
   const [topic, setTopic] = React.useState('');
   const [userLimit, setUserLimit] = React.useState('');
   const [audioQuality, setAudioQuality] = React.useState<VoiceAudioQuality>('STANDARD');
+  const [kind, setKind] = React.useState<VoiceChannelKind>('STANDARD');
 
   // Reset the form whenever the dialog opens with a different target.
   React.useEffect(() => {
@@ -70,6 +75,7 @@ export function VoiceChannelDialog(props: Props) {
     setTopic(channel?.topic ?? '');
     setUserLimit(channel?.userLimit ? String(channel.userLimit) : '');
     setAudioQuality(channel?.audioQuality ?? 'STANDARD');
+    setKind(channel?.kind ?? 'STANDARD');
   }, [open, channel]);
 
   const queryClient = useQueryClient();
@@ -100,6 +106,7 @@ export function VoiceChannelDialog(props: Props) {
       topic?: string;
       userLimit?: number;
       audioQuality?: VoiceAudioQuality;
+      kind?: VoiceChannelKind;
     }) => {
       if (isEdit) {
         return api<VoiceChannelPublic>(editUrl, { method: 'PATCH', body });
@@ -128,6 +135,9 @@ export function VoiceChannelDialog(props: Props) {
       userLimit:
         limit !== undefined && !Number.isNaN(limit) && limit >= 0 ? limit : undefined,
       audioQuality,
+      // Only send kind on create. Backend doesn't support kind change
+      // on edit (would require reseating every active participant).
+      ...(isEdit ? {} : { kind }),
     });
   };
 
@@ -170,6 +180,29 @@ export function VoiceChannelDialog(props: Props) {
               maxLength={200}
             />
           </div>
+          {!isEdit ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="vc-kind">Channel type</Label>
+              <Select
+                value={kind}
+                onValueChange={(v) => setKind(v as VoiceChannelKind)}
+              >
+                <SelectTrigger id="vc-kind">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STANDARD">Standard — everyone speaks</SelectItem>
+                  <SelectItem value="STAGE">
+                    Stage — speakers + audience (mods promote raised hands)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-ink-3">
+                Channel type can&apos;t be changed later. Stage channels are great
+                for presentations or all-hands.
+              </p>
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="vc-limit">User limit</Label>

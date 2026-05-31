@@ -133,6 +133,12 @@ export interface VoiceState {
     startedByName: string;
     startedAt: number;
   } | null;
+  /** Phase 8 — kind of the current channel ('STANDARD' or 'STAGE'). */
+  channelKind: 'STANDARD' | 'STAGE';
+  /** Phase 8 — local user's stage role (always SPEAKER in STANDARD). */
+  stageRole: 'SPEAKER' | 'AUDIENCE';
+  /** Phase 8 — true while the local user has a raised hand. */
+  handRaised: boolean;
   ping: number | null;
   error: string | null;
 }
@@ -179,6 +185,17 @@ export interface VoiceActions {
   startRecording: (opts?: { audioOnly?: boolean }) => Promise<void>;
   /** Mod: stop the active recording on the current channel. */
   stopRecording: () => Promise<void>;
+  // ─── Phase 8: stage channels ───────────────────────────────────────
+  /** Audience: raise your hand. No-op in STANDARD channels. */
+  raiseHand: () => Promise<void>;
+  /** Audience: lower your hand. Mods can also lower others via lowerOther. */
+  lowerHand: () => Promise<void>;
+  /** Mod: lower someone else's raised hand. */
+  lowerHandFor: (userId: string) => Promise<void>;
+  /** Mod: promote an audience member to speaker. */
+  stagePromote: (userId: string) => Promise<void>;
+  /** Mod: demote a speaker back to audience. */
+  stageDemote: (userId: string) => Promise<void>;
 }
 
 const VoiceContext = createContext<{ state: VoiceState; actions: VoiceActions } | null>(null);
@@ -203,6 +220,9 @@ const initialState: VoiceState = {
   soundboardPlayingClipId: null,
   connectionQuality: 'unknown',
   recording: null,
+  channelKind: 'STANDARD',
+  stageRole: 'SPEAKER',
+  handRaised: false,
   pttActive: false,
   preferences: null,
   ping: null,
@@ -494,11 +514,22 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       }
 
       // micMuted reflects the actual mic state at join time. PTT mode
-      // starts muted; voice-activity mode starts open.
-      const startWithMicOn = (prefs?.inputMode ?? 'VOICE_ACTIVITY') !== 'PUSH_TO_TALK';
+      // starts muted; voice-activity mode starts open. Stage AUDIENCE
+      // members force-mute since they can't publish anyway.
+      const channelKind = envelope.channel.kind ?? 'STANDARD';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const joinRole = ((envelope.participant as any)?.role ?? 'SPEAKER') as
+        | 'SPEAKER'
+        | 'AUDIENCE';
+      const startWithMicOn =
+        joinRole === 'SPEAKER' &&
+        (prefs?.inputMode ?? 'VOICE_ACTIVITY') !== 'PUSH_TO_TALK';
       patch({
         connectionState: 'connected',
         channelName: envelope.channel.name,
+        channelKind,
+        stageRole: joinRole,
+        handRaised: false,
         micMuted: !startWithMicOn,
       });
       refreshParticipants(room);
@@ -791,6 +822,82 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       patch({ error: (err as Error).message ?? 'Failed to stop recording.' });
     }
   }, [patch, state.channelId]);
+
+  // ─── Phase 8: stage channel actions ─────────────────────────────────
+
+  const raiseHand = useCallback<VoiceActions['raiseHand']>(async () => {
+    const channelId = state.channelId;
+    if (!channelId) return;
+    setState((prev) => ({ ...prev, handRaised: true })); // optimistic
+    try {
+      await api(apiPaths.voice.handRaise(channelId), { method: 'POST' });
+    } catch (err) {
+      setState((prev) => ({ ...prev, handRaised: false }));
+      patch({ error: (err as Error).message ?? 'Failed to raise hand.' });
+    }
+  }, [patch, state.channelId]);
+
+  const lowerHand = useCallback<VoiceActions['lowerHand']>(async () => {
+    const channelId = state.channelId;
+    if (!channelId) return;
+    setState((prev) => ({ ...prev, handRaised: false }));
+    try {
+      await api(apiPaths.voice.handLower(channelId), {
+        method: 'POST',
+        body: {},
+      });
+    } catch (err) {
+      patch({ error: (err as Error).message ?? 'Failed to lower hand.' });
+    }
+  }, [patch, state.channelId]);
+
+  const lowerHandFor = useCallback<VoiceActions['lowerHandFor']>(
+    async (userId) => {
+      const channelId = state.channelId;
+      if (!channelId) return;
+      try {
+        await api(apiPaths.voice.handLower(channelId), {
+          method: 'POST',
+          body: { targetUserId: userId },
+        });
+      } catch (err) {
+        patch({ error: (err as Error).message ?? 'Failed to lower hand.' });
+      }
+    },
+    [patch, state.channelId],
+  );
+
+  const stagePromote = useCallback<VoiceActions['stagePromote']>(
+    async (userId) => {
+      const channelId = state.channelId;
+      if (!channelId) return;
+      try {
+        await api(apiPaths.voice.stagePromote(channelId), {
+          method: 'POST',
+          body: { participantUserId: userId },
+        });
+      } catch (err) {
+        patch({ error: (err as Error).message ?? 'Failed to promote participant.' });
+      }
+    },
+    [patch, state.channelId],
+  );
+
+  const stageDemote = useCallback<VoiceActions['stageDemote']>(
+    async (userId) => {
+      const channelId = state.channelId;
+      if (!channelId) return;
+      try {
+        await api(apiPaths.voice.stageDemote(channelId), {
+          method: 'POST',
+          body: { participantUserId: userId },
+        });
+      } catch (err) {
+        patch({ error: (err as Error).message ?? 'Failed to demote participant.' });
+      }
+    },
+    [patch, state.channelId],
+  );
 
   // ─── Phase 6: soundboard playback ───────────────────────────────────
 
@@ -1155,6 +1262,43 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     };
   }, [enabled, state.connectionState, state.channelId]);
 
+  // ─── Phase 8: stage lifecycle events ────────────────────────────────
+  // Channel-level events update the queue + per-participant role;
+  // personally-addressed voice.stage.you.* fires for the local user
+  // so they know they've been promoted/demoted even if their channel
+  // subscription dropped briefly.
+  useEffect(() => {
+    if (!enabled) return;
+    if (state.connectionState !== 'connected' || !state.channelId) return;
+    const socket = getVoiceSocket();
+    if (!socket) return;
+    const localId = roomRef.current?.localParticipant.identity ?? null;
+
+    const onYouPromoted = () => {
+      setState((prev) => ({ ...prev, stageRole: 'SPEAKER', handRaised: false }));
+    };
+    const onYouDemoted = () => {
+      setState((prev) => ({ ...prev, stageRole: 'AUDIENCE', handRaised: false, micMuted: true }));
+      // Stop transmitting immediately if we were mid-sentence.
+      const room = roomRef.current;
+      if (room) void room.localParticipant.setMicrophoneEnabled(false);
+    };
+    const onHandLowered = (payload: { channelId: string; userId: string }) => {
+      if (payload.channelId !== state.channelId) return;
+      if (payload.userId === localId) {
+        setState((prev) => ({ ...prev, handRaised: false }));
+      }
+    };
+    socket.on('voice.stage.you.promoted', onYouPromoted);
+    socket.on('voice.stage.you.demoted', onYouDemoted);
+    socket.on('voice.stage.hand.lowered', onHandLowered);
+    return () => {
+      socket.off('voice.stage.you.promoted', onYouPromoted);
+      socket.off('voice.stage.you.demoted', onYouDemoted);
+      socket.off('voice.stage.hand.lowered', onHandLowered);
+    };
+  }, [enabled, state.connectionState, state.channelId]);
+
   // ─── Push-to-talk key handler ───────────────────────────────────────
 
   useEffect(() => {
@@ -1341,6 +1485,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       setSoundboardVolume,
       startRecording,
       stopRecording,
+      raiseHand,
+      lowerHand,
+      lowerHandFor,
+      stagePromote,
+      stageDemote,
     }),
     [
       joinChannel,
@@ -1365,6 +1514,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       setSoundboardVolume,
       startRecording,
       stopRecording,
+      raiseHand,
+      lowerHand,
+      lowerHandFor,
+      stagePromote,
+      stageDemote,
     ],
   );
 

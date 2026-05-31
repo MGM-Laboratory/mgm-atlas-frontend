@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Volume2 } from 'lucide-react';
+import { MicVocal, Volume2 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,7 +80,14 @@ export function VoiceChannelRow({
 
   const rowContent = (
     <>
-      <Volume2 className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
+      {channel.kind === 'STAGE' ? (
+        <MicVocal
+          className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue"
+          strokeWidth={2.25}
+        />
+      ) : (
+        <Volume2 className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate">{channel.name}</span>
