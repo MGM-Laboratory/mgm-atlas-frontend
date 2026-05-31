@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { getStoredSession } from '@/lib/auth-client';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { NotificationsClient } from '@/components/notifications/notifications-client';
 import { VoiceConnectedPanel } from '@/components/voice/voice-connected-panel';
 
 // In-conversation chat pages: /projects/<slug>/chat/<channelId>. Voice
@@ -39,6 +40,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
         <Header user={session.user} />
         <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
         <VoiceConnectedPanel />
+        <NotificationsClient />
       </div>
     );
   }
@@ -49,6 +51,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
       <main className="flex-1">{children}</main>
       <Footer />
       <VoiceConnectedPanel />
+      <NotificationsClient />
     </div>
   );
 }

@@ -59,6 +59,12 @@ export const apiPaths = {
   unreadCount: () => '/notifications/unread-count',
   markRead: (id: string) => `/notifications/${id}/read`,
   markAllRead: () => '/notifications/read-all',
+  // ─── Web Push (Phase 3) ───────────────────────────────────────────
+  vapidPublicKey: () => '/notifications/push/vapid-public-key',
+  pushSubscribe: () => '/notifications/push/subscribe',
+  pushSubscriptions: () => '/notifications/push/subscriptions',
+  pushSubscriptionDelete: (id: string) => `/notifications/push/subscriptions/${id}`,
+  notificationPreferences: () => '/notifications/preferences',
 
   collaborationRoles: () => '/admin/collaboration-roles',
   collaborationRole: (id: string) => `/admin/collaboration-roles/${id}`,
