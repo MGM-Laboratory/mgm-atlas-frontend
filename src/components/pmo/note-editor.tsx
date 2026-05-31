@@ -159,14 +159,51 @@ function BlockNoteEditor({
 
   React.useEffect(() => () => clearTimeout(saveTimer.current), []);
 
+  // Block edits while the Yjs provider is still negotiating its first
+  // sync — typing into the doc before the server snapshot arrives risks
+  // having those keystrokes silently dropped on the next merge, and
+  // showing a frozen-looking editor is confusing. The single-user
+  // ("offline") path doesn't have a connecting window — it boots with
+  // `initialContent` already populated.
+  const isLoading = status === 'connecting';
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-end px-1 pb-2">
         <StatusPill status={status} />
       </div>
-      <div className="flex-1 overflow-auto rounded-lg border border-line bg-white">
-        <BlockNoteView editor={editor} theme="light" onChange={persist} className="py-3" />
+      <div className="relative flex-1 overflow-auto rounded-lg border border-line bg-white">
+        <BlockNoteView
+          editor={editor}
+          theme="light"
+          onChange={persist}
+          editable={!isLoading}
+          className="py-3"
+        />
+        {isLoading ? <NoteLoadingOverlay /> : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Centred spinner overlay shown while the Yjs provider hasn't completed
+ * its first sync. `inset-0` + `bg-white/85` covers the empty editor
+ * underneath so the user doesn't see a blank canvas they'll be tempted
+ * to type into. The overlay catches pointer events too — belt-and-braces
+ * even though the editor is already `editable={false}` — so stray clicks
+ * on the toolbar area also bounce.
+ */
+function NoteLoadingOverlay() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/85 backdrop-blur-[2px]"
+    >
+      <Loader2 className="h-5 w-5 animate-spin text-brand-blue" strokeWidth={2.25} />
+      <span className="text-[13px] font-medium text-ink-2">Loading note…</span>
+      <span className="text-[12px] text-ink-3">Hold tight — syncing the latest version.</span>
     </div>
   );
 }
