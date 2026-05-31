@@ -18,6 +18,7 @@ import { getStoredSession } from '@/lib/auth-client';
 
 let chatSocket: Socket | null = null;
 let voiceSocket: Socket | null = null;
+let notificationsSocket: Socket | null = null;
 
 function resolveSocketUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SOCKET_URL;
@@ -27,7 +28,7 @@ function resolveSocketUrl(): string {
   return apiUrl.replace(/\/api\/v\d+\/?$/, '');
 }
 
-function makeSocket(namespace: '/chat' | '/voice'): Socket | null {
+function makeSocket(namespace: '/chat' | '/voice' | '/notifications'): Socket | null {
   if (typeof window === 'undefined') return null;
   const session = getStoredSession();
   if (!session) return null;
@@ -55,6 +56,13 @@ export function getVoiceSocket(): Socket | null {
   return voiceSocket;
 }
 
+export function getNotificationsSocket(): Socket | null {
+  if (typeof window === 'undefined') return null;
+  if (notificationsSocket) return notificationsSocket;
+  notificationsSocket = makeSocket('/notifications');
+  return notificationsSocket;
+}
+
 /** Drop the singletons — used on logout so the next user gets fresh sockets. */
 export function disconnectChatSocket(): void {
   if (chatSocket) {
@@ -67,5 +75,12 @@ export function disconnectVoiceSocket(): void {
   if (voiceSocket) {
     voiceSocket.disconnect();
     voiceSocket = null;
+  }
+}
+
+export function disconnectNotificationsSocket(): void {
+  if (notificationsSocket) {
+    notificationsSocket.disconnect();
+    notificationsSocket = null;
   }
 }
