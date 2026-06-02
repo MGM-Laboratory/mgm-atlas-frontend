@@ -234,6 +234,8 @@ export const apiPaths = {
       remove: (slug: string, fileId: string, force?: boolean) =>
         `/projects/${slug}/files/${fileId}${force ? '?force=1' : ''}`,
     },
+    undo: () => '/pmo/undo',
+    redo: () => '/pmo/redo',
     notes: {
       list: (slug: string) => `/projects/${slug}/notes`,
       create: (slug: string) => `/projects/${slug}/notes`,
