@@ -24,6 +24,7 @@ import { Plus, Search, Settings2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { useSaveSurface, SaveBadge } from '@/lib/save-coordinator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
@@ -69,11 +70,35 @@ export function KanbanBoard({ projectSlug, list, canManage }: Props) {
   });
 
   // Local copy for optimistic moves. Sync from server data whenever it
-  // arrives so we never drift after an invalidate.
+  // arrives, BUT skip any task currently mid-flight so we don't clobber
+  // its optimistic state with a possibly-stale server snapshot.
+  //
+  // This is the fix for the reported "dragged a card but it snapped
+  // back" bug: previously `move.onSuccess` invalidated the query,
+  // and on the fresh refetch the useEffect would re-seed localTasks
+  // from data that hadn't yet observed the move (or had observed the
+  // first of two rapid drags but not the second).
+  const pendingMoves = React.useRef<Set<string>>(new Set());
   const [localTasks, setLocalTasks] = React.useState<Task[]>([]);
   React.useEffect(() => {
-    if (tasks.data) setLocalTasks(tasks.data);
+    if (!tasks.data) return;
+    setLocalTasks((prev) => {
+      if (pendingMoves.current.size === 0) return tasks.data!;
+      const prevById = new Map(prev.map((t) => [t.id, t]));
+      return tasks.data!.map((t) =>
+        pendingMoves.current.has(t.id) ? prevById.get(t.id) ?? t : t,
+      );
+    });
   }, [tasks.data]);
+
+  const save = useSaveSurface({
+    surfaceId: `kanban:${list.id}`,
+    // Kanban mutations are real PATCHes that have already been fired
+    // (or are about to be) — there is nothing to flush via beacon.
+    // The surface registration still gates the beforeunload warning
+    // while a move is in-flight.
+    flushNow: () => {},
+  });
 
   const columns: ColumnData[] = React.useMemo(() => {
     const orderedStatuses = list.statuses.slice().sort((a, b) => a.order - b.order);
@@ -111,12 +136,31 @@ export function KanbanBoard({ projectSlug, list, canManage }: Props) {
         method: 'PATCH',
         body: { statusId, positionInStatus },
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.pmo.tasks(projectSlug, list.id) });
+    onMutate: (vars) => {
+      pendingMoves.current.add(vars.taskId);
+      save.markSaving();
+    },
+    onSuccess: (returned, vars) => {
+      // Merge the server's authoritative row into every cached page
+      // for this list. We deliberately do NOT call invalidateQueries
+      // here — that triggers a refetch which can race against a
+      // subsequent in-flight move and snap the card back to a pre-
+      // move state. setQueryData is idempotent and avoids the round
+      // trip entirely.
+      queryClient.setQueriesData<Task[]>(
+        { queryKey: queryKeys.pmo.tasks(projectSlug, list.id) },
+        (cur) => (cur ? cur.map((t) => (t.id === returned.id ? returned : t)) : cur),
+      );
+      setLocalTasks((cur) => cur.map((t) => (t.id === returned.id ? returned : t)));
+      pendingMoves.current.delete(vars.taskId);
+      if (pendingMoves.current.size === 0) save.markSaved();
     },
     onError: (err: unknown, vars) => {
-      // Roll back the optimistic move by refetching.
+      pendingMoves.current.delete(vars.taskId);
+      // Roll back THIS task by refetching — only safe now that no
+      // other move is in flight for it.
       queryClient.invalidateQueries({ queryKey: tasksQueryKey });
+      save.markError(err instanceof Error ? err.message : `Move failed`);
       toast.show({
         title: 'Move failed',
         description: err instanceof Error ? err.message : `Could not move task ${vars.taskId}`,
@@ -273,6 +317,7 @@ export function KanbanBoard({ projectSlug, list, canManage }: Props) {
             Manage statuses
           </Button>
         ) : null}
+        <SaveBadge surfaceId={`kanban:${list.id}`} className="ml-auto" />
       </div>
 
       {tasks.isLoading ? (

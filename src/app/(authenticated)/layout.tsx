@@ -7,6 +7,7 @@ import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { NotificationsClient } from '@/components/notifications/notifications-client';
 import { VoiceConnectedPanel } from '@/components/voice/voice-connected-panel';
+import { SaveCoordinatorBeforeUnload } from '@/lib/save-coordinator';
 
 // In-conversation chat pages: /projects/<slug>/chat/<channelId>. Voice
 // rooms — both /projects/<slug>/voice/<id> and /voice/<id> — get the
@@ -41,6 +42,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
         <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
         <VoiceConnectedPanel />
         <NotificationsClient />
+        <SaveCoordinatorBeforeUnload />
       </div>
     );
   }
@@ -52,6 +54,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
       <Footer />
       <VoiceConnectedPanel />
       <NotificationsClient />
+      <SaveCoordinatorBeforeUnload />
     </div>
   );
 }

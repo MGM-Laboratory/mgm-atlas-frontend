@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Excalidraw } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import { Download, Eye, Loader2, Pencil, Upload, WifiOff } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, apiBeacon } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { getYjsWsUrl } from '@/lib/hooks/use-pmo-enabled';
 import { createYjsConnection, cursorColorFor, type YjsConnection } from '@/lib/yjs/provider';
@@ -14,10 +14,11 @@ import {
   type ExcalidrawApiLike,
   type ExElement,
 } from '@/lib/yjs/excalidraw-binding';
+import { useSaveSurface, SaveBadge } from '@/lib/save-coordinator';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
-import type { SessionUser, Whiteboard, YjsTokenResponse } from '@/lib/types';
+import type { SessionUser, YjsTokenResponse } from '@/lib/types';
 
 export function WhiteboardCanvas({
   projectSlug,
@@ -47,11 +48,16 @@ export function WhiteboardCanvas({
 
   React.useEffect(() => {
     return () => {
+      // Flush whatever the user just drew via keepalive fetch BEFORE
+      // we tear down the Yjs binding — otherwise the pending 2s
+      // debounce gets clipped and the scene is lost.
       clearTimeout(saveTimer.current);
+      flushScene('beacon');
       bindingRef.current?.destroy();
       connRef.current?.provider.destroy();
       connRef.current?.doc.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run-once teardown
   }, []);
 
   // Once both the Excalidraw API and the token are ready, wire the Yjs binding.
@@ -76,9 +82,11 @@ export function WhiteboardCanvas({
     tryBind();
   }, [tryBind]);
 
-  const persistSnapshot = React.useCallback(() => {
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
+  const surfaceId = `whiteboard:${wbId}`;
+  const lastFlushed = React.useRef<string | undefined>(undefined);
+
+  const flushScene = React.useCallback(
+    (mode: 'async' | 'beacon') => {
       const exApi = apiRef.current;
       if (!exApi) return;
       const scene = {
@@ -88,12 +96,46 @@ export function WhiteboardCanvas({
         appState: { viewBackgroundColor: exApi.getAppState().viewBackgroundColor ?? '#ffffff' },
         files: exApi.getFiles(),
       };
-      void api(apiPaths.pmo.whiteboards.update(projectSlug, wbId), {
-        method: 'PATCH',
-        body: { sceneSnapshot: scene },
-      }).catch(() => {});
-    }, 2000);
-  }, [projectSlug, wbId]);
+      const serial = JSON.stringify(scene);
+      if (serial === lastFlushed.current) {
+        save.markSaved();
+        return;
+      }
+      lastFlushed.current = serial;
+      const path = apiPaths.pmo.whiteboards.update(projectSlug, wbId);
+      if (mode === 'beacon') {
+        apiBeacon(path, { sceneSnapshot: scene });
+        save.markSaved();
+        return;
+      }
+      save.markSaving();
+      void api(path, { method: 'PATCH', body: { sceneSnapshot: scene } })
+        .then(() => save.markSaved())
+        .catch((err: unknown) => {
+          lastFlushed.current = undefined;
+          save.markError(err instanceof Error ? err.message : 'Save failed');
+        });
+    },
+    // `save` intentionally excluded — identity stable, see note-editor.tsx.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectSlug, wbId],
+  );
+
+  const save = useSaveSurface({
+    surfaceId,
+    flushNow: () => flushScene('beacon'),
+  });
+
+  const persistSnapshot = React.useCallback(
+    () => {
+      save.markDirty();
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => flushScene('async'), 2000);
+    },
+    // `save`'s identity is stable across renders — intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flushScene],
+  );
 
   const handleChange = React.useCallback(
     (elements: readonly ExElement[]) => {
@@ -174,7 +216,10 @@ export function WhiteboardCanvas({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 pb-2">
-        <StatusPill status={status} />
+        <div className="flex items-center gap-3">
+          <StatusPill status={status} />
+          <SaveBadge surfaceId={surfaceId} />
+        </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => setViewMode((v) => !v)}>
             {viewMode ? (
