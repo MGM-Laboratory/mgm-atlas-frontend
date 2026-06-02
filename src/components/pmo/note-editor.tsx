@@ -47,15 +47,19 @@ export function NoteEditor({
 
   const wsBase = getYjsWsUrl() || tokenQuery.data?.wsUrl || '';
 
-  // Single-user fallback seeds the editor from the stored projection.
+  // Always fetch the stored projection — not just for offline mode.
+  // In online (Yjs) mode it's used for auto-recovery when the Yjs
+  // binary state is empty (lost to the PR1 sidecar race) but the
+  // JSON projection still has the user's real content. See the
+  // recovery logic inside BlockNoteEditor for details.
   const noteQuery = useQuery({
     queryKey: queryKeys.pmo.note(projectSlug, noteId),
     queryFn: () => api<ProjectNote>(apiPaths.pmo.notes.one(projectSlug, noteId)),
-    enabled: !wsBase && !!tokenQuery.data,
+    enabled: !!tokenQuery.data,
     refetchOnWindowFocus: false,
   });
 
-  if (tokenQuery.isLoading || (!wsBase && !!tokenQuery.data && noteQuery.isLoading)) {
+  if (tokenQuery.isLoading || (!!tokenQuery.data && noteQuery.isLoading)) {
     return <EditorLoading />;
   }
   if (tokenQuery.isError || !tokenQuery.data) {
@@ -77,6 +81,27 @@ export function NoteEditor({
 
 function asBlocks(snapshot: unknown): PartialBlock[] | undefined {
   return Array.isArray(snapshot) && snapshot.length ? (snapshot as PartialBlock[]) : undefined;
+}
+
+/**
+ * True when the editor's current document is effectively blank —
+ * either an empty array, or a single paragraph with no inline content.
+ * Used to decide whether to auto-restore from the JSON projection.
+ */
+function documentLooksEmpty(doc: readonly unknown[]): boolean {
+  if (!Array.isArray(doc) || doc.length === 0) return true;
+  if (doc.length > 1) return false;
+  const only = doc[0] as { type?: string; content?: unknown } | null;
+  if (!only) return true;
+  if (only.type !== 'paragraph') return false;
+  const c = only.content;
+  if (!Array.isArray(c)) return true;
+  if (c.length === 0) return true;
+  // BlockNote often stores a single text-run with empty string when "empty".
+  return c.every((node) => {
+    const n = node as { type?: string; text?: string };
+    return n && (n.type !== 'text' || !n.text || n.text.length === 0);
+  });
 }
 
 function BlockNoteEditor({
@@ -191,6 +216,35 @@ function BlockNoteEditor({
       conn.provider.off('sync', onSync);
     };
   }, [conn]);
+
+  // Auto-recovery from JSON projection.
+  //
+  // Some docs lost their binary Yjs state to the PR1 sidecar race
+  // (writeState raced with a 250ms flush handler that wrote an
+  // empty Y.Doc on top of the correct one). The JSON projection
+  // (`ProjectNote.contentSnapshot`) wasn't affected by that bug.
+  // Once Yjs has finished its initial sync, if the editor is
+  // observably empty BUT we have a non-trivial contentSnapshot,
+  // apply the snapshot via `replaceBlocks`. The change propagates
+  // through Yjs → sidecar (now correctly persistent post-fix) →
+  // `YDocSnapshot`, so subsequent loads return the right content.
+  //
+  // Runs at most once per mount via `recoveredRef` — if a real
+  // collaborator wipes the doc later we don't fight them.
+  const recoveredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!synced || !conn || recoveredRef.current) return;
+    if (!initialContent || initialContent.length === 0) return;
+    const live = editor.document;
+    if (!documentLooksEmpty(live)) return;
+    recoveredRef.current = true;
+    try {
+      editor.replaceBlocks(editor.document, initialContent);
+    } catch {
+      // Bad snapshot shape — ignore, leave editor blank rather than crash.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run-once recovery
+  }, [synced, conn, editor]);
 
   // Reusable PATCH — exposed both to the regular debounce path and to
   // the sync flush-on-unmount/hide path (via apiBeacon w/ keepalive).
