@@ -19,7 +19,7 @@ import { RevisionHistoryDrawer } from '@/components/pmo/revision-history-drawer'
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
-import type { SessionUser, YjsTokenResponse } from '@/lib/types';
+import type { SessionUser, Whiteboard, YjsTokenResponse } from '@/lib/types';
 
 export function WhiteboardCanvas({
   projectSlug,
@@ -47,6 +47,16 @@ export function WhiteboardCanvas({
     staleTime: 90 * 60 * 1000,
   });
   const wsBase = getYjsWsUrl() || tokenQuery.data?.wsUrl || '';
+
+  // Stored sceneSnapshot JSON projection — fetched for auto-recovery
+  // when the Yjs binary state is empty but the projection has the
+  // user's saved scene. See the recovery effect below.
+  const whiteboardQuery = useQuery({
+    queryKey: ['pmo', 'whiteboard', projectSlug, wbId],
+    queryFn: () => api<Whiteboard>(apiPaths.pmo.whiteboards.one(projectSlug, wbId)),
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
 
   React.useEffect(() => {
     return () => {
@@ -95,14 +105,21 @@ export function WhiteboardCanvas({
   // switch in that window would beacon-flush an empty scene and
   // overwrite the stored drawing.
   const syncedRef = React.useRef<boolean>(!wsBase);
+  const [synced, setSynced] = React.useState<boolean>(!wsBase);
   React.useEffect(() => {
     const conn = connRef.current;
     if (!conn) return;
     const onSync = (isSynced: boolean) => {
-      if (isSynced) syncedRef.current = true;
+      if (isSynced) {
+        syncedRef.current = true;
+        setSynced(true);
+      }
     };
     conn.provider.on('sync', onSync);
-    if (conn.provider.synced) syncedRef.current = true;
+    if (conn.provider.synced) {
+      syncedRef.current = true;
+      setSynced(true);
+    }
     return () => {
       conn.provider.off('sync', onSync);
     };
@@ -110,6 +127,38 @@ export function WhiteboardCanvas({
     // effect whenever the token query data lands (that's when the
     // connection is actually constructed).
   }, [tokenQuery.data, wsBase]);
+
+  // Auto-recovery from sceneSnapshot.
+  //
+  // Whiteboards that lost their binary Yjs state to the PR1 sidecar
+  // race (writeState raced with the 250ms flush-on-disconnect handler
+  // and wrote an empty doc on top) come back from the dead here:
+  // once Yjs has synced and the live scene is empty BUT the JSON
+  // projection has elements, push the elements through the binding
+  // so the change propagates back to the (now-fixed) sidecar.
+  const recoveredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!synced || recoveredRef.current) return;
+    const binding = bindingRef.current;
+    const exApi = apiRef.current;
+    if (!binding || !exApi) return;
+    const sceneJson = whiteboardQuery.data?.sceneSnapshot as
+      | { elements?: ExElement[] }
+      | null
+      | undefined;
+    const savedElements = Array.isArray(sceneJson?.elements) ? sceneJson?.elements ?? [] : [];
+    if (savedElements.length === 0) return;
+    const liveElements = exApi.getSceneElementsIncludingDeleted();
+    const liveNonDeleted = liveElements.filter((el) => !el.isDeleted);
+    if (liveNonDeleted.length > 0) return;
+    recoveredRef.current = true;
+    try {
+      binding.replaceAll(savedElements);
+    } catch {
+      // ignore — leave canvas blank rather than crash
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run-once recovery
+  }, [synced, whiteboardQuery.data]);
 
   const flushScene = React.useCallback(
     (mode: 'async' | 'beacon') => {
