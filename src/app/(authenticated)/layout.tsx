@@ -8,6 +8,7 @@ import { Footer } from '@/components/layout/footer';
 import { NotificationsClient } from '@/components/notifications/notifications-client';
 import { VoiceConnectedPanel } from '@/components/voice/voice-connected-panel';
 import { SaveCoordinatorBeforeUnload } from '@/lib/save-coordinator';
+import { GlobalUndoListener } from '@/lib/undo/use-global-undo';
 
 // In-conversation chat pages: /projects/<slug>/chat/<channelId>. Voice
 // rooms — both /projects/<slug>/voice/<id> and /voice/<id> — get the
@@ -43,6 +44,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
         <VoiceConnectedPanel />
         <NotificationsClient />
         <SaveCoordinatorBeforeUnload />
+        <GlobalUndoListener />
       </div>
     );
   }
