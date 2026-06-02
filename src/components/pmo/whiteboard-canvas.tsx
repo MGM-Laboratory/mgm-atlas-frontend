@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Excalidraw } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
-import { Download, Eye, Loader2, Pencil, Upload, WifiOff } from 'lucide-react';
+import { Clock, Download, Eye, Loader2, Pencil, Upload, WifiOff } from 'lucide-react';
 import { api, apiBeacon } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { getYjsWsUrl } from '@/lib/hooks/use-pmo-enabled';
@@ -15,6 +15,7 @@ import {
   type ExElement,
 } from '@/lib/yjs/excalidraw-binding';
 import { useSaveSurface, SaveBadge } from '@/lib/save-coordinator';
+import { RevisionHistoryDrawer } from '@/components/pmo/revision-history-drawer';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ export function WhiteboardCanvas({
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [status, setStatus] = React.useState<'connecting' | 'connected' | 'offline'>('connecting');
   const [viewMode, setViewMode] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
 
   const tokenQuery = useQuery({
     queryKey: ['pmo', 'wb-token', projectSlug, wbId],
@@ -73,6 +75,7 @@ export function WhiteboardCanvas({
       setStatus(e.status === 'connected' ? 'connected' : 'connecting'),
     );
     bindingRef.current = new ExcalidrawYjsBinding(conn.doc, conn.provider, apiRef.current, {
+      id: user.id,
       name: user.name,
       color: cursorColorFor(user.id),
     });
@@ -214,7 +217,7 @@ export function WhiteboardCanvas({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 pb-2">
         <div className="flex items-center gap-3">
           <StatusPill status={status} />
@@ -231,6 +234,15 @@ export function WhiteboardCanvas({
                 <Eye className="h-4 w-4" strokeWidth={2.25} /> View
               </>
             )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-pressed={historyOpen}
+          >
+            <Clock className="h-4 w-4" strokeWidth={2.25} /> History
           </Button>
           <Button
             type="button"
@@ -270,6 +282,26 @@ export function WhiteboardCanvas({
           isCollaborating
         />
       </div>
+      <RevisionHistoryDrawer
+        kind="whiteboard"
+        projectSlug={projectSlug}
+        parentId={wbId}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onRestored={(snapshot) => {
+          // Replace the canvas with the restored Excalidraw scene.
+          // For collab docs this goes through the binding so other
+          // clients see it too.
+          const sc = snapshot as { elements?: ExElement[] } | null;
+          const elements = sc?.elements;
+          if (!Array.isArray(elements)) return;
+          if (bindingRef.current) {
+            bindingRef.current.replaceAll(elements);
+          } else {
+            apiRef.current?.updateScene({ elements });
+          }
+        }}
+      />
     </div>
   );
 }

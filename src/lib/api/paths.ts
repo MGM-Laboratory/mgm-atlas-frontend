@@ -241,6 +241,12 @@ export const apiPaths = {
       update: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
       remove: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
       yjsToken: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}/yjs-token`,
+      revisions: (slug: string, noteId: string) =>
+        `/projects/${slug}/notes/${noteId}/revisions`,
+      revision: (slug: string, noteId: string, revisionId: string) =>
+        `/projects/${slug}/notes/${noteId}/revisions/${revisionId}`,
+      restoreRevision: (slug: string, noteId: string, revisionId: string) =>
+        `/projects/${slug}/notes/${noteId}/revisions/${revisionId}/restore`,
     },
     whiteboards: {
       list: (slug: string) => `/projects/${slug}/whiteboards`,
@@ -252,6 +258,12 @@ export const apiPaths = {
       exportMgm: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}/export`,
       thumbnailPresign: (slug: string, wbId: string) =>
         `/projects/${slug}/whiteboards/${wbId}/thumbnail/presign`,
+      revisions: (slug: string, wbId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/revisions`,
+      revision: (slug: string, wbId: string, revisionId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/revisions/${revisionId}`,
+      restoreRevision: (slug: string, wbId: string, revisionId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/revisions/${revisionId}/restore`,
     },
   },
 

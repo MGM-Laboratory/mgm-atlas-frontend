@@ -29,6 +29,9 @@ export interface ExcalidrawApiLike {
 }
 
 export interface BindingUser {
+  /// Session user id — carried in awareness so the y-websocket sidecar
+  /// can attribute the next snapshot revision to a real User row (PR2).
+  id: string;
   name: string;
   color: string;
 }

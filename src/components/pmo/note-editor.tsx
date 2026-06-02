@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, WifiOff } from 'lucide-react';
+import { Clock, Loader2, WifiOff } from 'lucide-react';
 import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/ariakit';
 import { type PartialBlock } from '@blocknote/core';
@@ -14,6 +14,8 @@ import { queryKeys } from '@/lib/api/queries';
 import { getYjsWsUrl } from '@/lib/hooks/use-pmo-enabled';
 import { createYjsConnection, cursorColorFor, type YjsConnection } from '@/lib/yjs/provider';
 import { useSaveSurface, SaveBadge } from '@/lib/save-coordinator';
+import { RevisionHistoryDrawer } from '@/components/pmo/revision-history-drawer';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ProjectNote, SessionUser, YjsTokenResponse } from '@/lib/types';
 
@@ -120,7 +122,11 @@ function BlockNoteEditor({
 
   React.useEffect(() => {
     if (!conn) return;
+    // `id` is consumed by the y-websocket sidecar to attribute the
+    // next YDocSnapshotRevision row to the right user (PR2). Don't
+    // drop it without coordinating with the sidecar.
     conn.provider.awareness.setLocalStateField('user', {
+      id: user.id,
       name: user.name,
       color: cursorColorFor(user.id),
     });
@@ -236,12 +242,41 @@ function BlockNoteEditor({
   // ("offline") path doesn't have a connecting window — it boots with
   // `initialContent` already populated.
   const isLoading = status === 'connecting';
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+
+  // Roll the BlockNote editor's content to a snapshot loaded from the
+  // History drawer. For collaborative docs this mutates the bound Yjs
+  // doc so the change propagates to all connected clients; for single-
+  // user (offline) mode it just replaces local state.
+  const applySnapshot = React.useCallback(
+    (snapshot: unknown) => {
+      if (!Array.isArray(snapshot) || snapshot.length === 0) return;
+      try {
+        const blocks = snapshot as PartialBlock[];
+        editor.replaceBlocks(editor.document, blocks);
+      } catch {
+        // BlockNote may reject malformed snapshots; ignore — the
+        // server already wrote a new revision pointing at this
+        // content, so the user can refresh to see it.
+      }
+    },
+    [editor],
+  );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <div className="flex items-center justify-end gap-3 px-1 pb-2">
         <SaveBadge surfaceId={surfaceId} />
         <StatusPill status={status} />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setHistoryOpen((v) => !v)}
+          aria-pressed={historyOpen}
+        >
+          <Clock className="h-3.5 w-3.5" strokeWidth={2.25} /> History
+        </Button>
       </div>
       <div className="relative flex-1 overflow-auto rounded-lg border border-line bg-white">
         <BlockNoteView
@@ -253,6 +288,14 @@ function BlockNoteEditor({
         />
         {isLoading ? <NoteLoadingOverlay /> : null}
       </div>
+      <RevisionHistoryDrawer
+        kind="note"
+        projectSlug={projectSlug}
+        parentId={noteId}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onRestored={applySnapshot}
+      />
     </div>
   );
 }
