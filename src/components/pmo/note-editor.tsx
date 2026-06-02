@@ -8,11 +8,12 @@ import { BlockNoteView } from '@blocknote/ariakit';
 import { type PartialBlock } from '@blocknote/core';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/ariakit/style.css';
-import { api } from '@/lib/api/client';
+import { api, apiBeacon } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
 import { getYjsWsUrl } from '@/lib/hooks/use-pmo-enabled';
 import { createYjsConnection, cursorColorFor, type YjsConnection } from '@/lib/yjs/provider';
+import { useSaveSurface, SaveBadge } from '@/lib/save-coordinator';
 import { cn } from '@/lib/utils';
 import type { ProjectNote, SessionUser, YjsTokenResponse } from '@/lib/types';
 
@@ -144,20 +145,89 @@ function BlockNoteEditor({
       : { initialContent },
   );
 
+  const surfaceId = `note:${noteId}`;
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const persist = React.useCallback(() => {
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      void api(apiPaths.pmo.notes.update(projectSlug, noteId), {
-        method: 'PATCH',
-        body: { contentSnapshot: editor.document },
-      })
-        .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.pmo.notes(projectSlug) }))
-        .catch(() => {});
-    }, 1500);
-  }, [editor, projectSlug, noteId, queryClient]);
+  const pendingDoc = React.useRef<unknown>(undefined);
+  const lastFlushedDoc = React.useRef<string | undefined>(undefined);
 
-  React.useEffect(() => () => clearTimeout(saveTimer.current), []);
+  // Reusable PATCH — exposed both to the regular debounce path and to
+  // the sync flush-on-unmount/hide path (via apiBeacon w/ keepalive).
+  const flushDoc = React.useCallback(
+    (mode: 'async' | 'beacon') => {
+      const doc = pendingDoc.current;
+      if (doc === undefined) return;
+      const serial = JSON.stringify(doc);
+      if (serial === lastFlushedDoc.current) {
+        // No payload diff since the last successful flush — clear dirty.
+        pendingDoc.current = undefined;
+        save.markSaved();
+        return;
+      }
+      lastFlushedDoc.current = serial;
+      pendingDoc.current = undefined;
+      const path = apiPaths.pmo.notes.update(projectSlug, noteId);
+      if (mode === 'beacon') {
+        // Fire-and-forget via fetch keepalive — survives page unload.
+        apiBeacon(path, { contentSnapshot: doc });
+        save.markSaved();
+        return;
+      }
+      save.markSaving();
+      void api(path, { method: 'PATCH', body: { contentSnapshot: doc } })
+        .then(() => {
+          save.markSaved();
+          queryClient.invalidateQueries({ queryKey: queryKeys.pmo.notes(projectSlug) });
+        })
+        .catch((err: unknown) => {
+          // Put the doc back so a later flush retries.
+          pendingDoc.current = doc;
+          lastFlushedDoc.current = undefined;
+          save.markError(err instanceof Error ? err.message : 'Save failed');
+        });
+    },
+    // `save` is intentionally excluded: its identity is stable
+    // across renders (zustand `setStatus` reference is stable and
+    // `useSaveSurface` returns a memoized object), and re-creating
+    // flushDoc on every render would invalidate the BlockNote
+    // onChange callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectSlug, noteId, queryClient],
+  );
+
+  // `save` must be defined AFTER flushDoc so flushNow can call it,
+  // but flushDoc calls save.markSaving / markError. We resolve the
+  // cycle by reading from a ref captured below.
+  const save = useSaveSurface({
+    surfaceId,
+    flushNow: () => flushDoc('beacon'),
+  });
+
+  const persist = React.useCallback(
+    () => {
+      pendingDoc.current = editor.document;
+      save.markDirty();
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => flushDoc('async'), 1500);
+    },
+    // `save`'s identity is stable across renders (useMemo over a
+    // stable setStatus reference), so it's intentionally not listed
+    // — including it would force a new persist callback on every
+    // re-render which BlockNoteView treats as a config change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor, flushDoc],
+  );
+
+  React.useEffect(
+    () => () => {
+      // On unmount: flush whatever is pending via beacon so the
+      // in-flight debounce doesn't get clipped. useSaveSurface also
+      // calls flushNow on unmount, but doing both is harmless — the
+      // beacon path is idempotent (deduped via lastFlushedDoc).
+      clearTimeout(saveTimer.current);
+      flushDoc('beacon');
+    },
+    [flushDoc],
+  );
 
   // Block edits while the Yjs provider is still negotiating its first
   // sync — typing into the doc before the server snapshot arrives risks
@@ -169,7 +239,8 @@ function BlockNoteEditor({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-end px-1 pb-2">
+      <div className="flex items-center justify-end gap-3 px-1 pb-2">
+        <SaveBadge surfaceId={surfaceId} />
         <StatusPill status={status} />
       </div>
       <div className="relative flex-1 overflow-auto rounded-lg border border-line bg-white">

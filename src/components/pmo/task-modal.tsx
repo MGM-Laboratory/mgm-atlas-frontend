@@ -14,9 +14,10 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, apiBeacon } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { useSaveSurface, SaveBadge } from '@/lib/save-coordinator';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -222,19 +223,53 @@ function ModalBody({
     lastDescriptionRef.current = task.description;
   }, [task.description]);
   const descriptionTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleDescriptionChange = (json: object) => {
-    if (descriptionTimer.current) clearTimeout(descriptionTimer.current);
-    descriptionTimer.current = setTimeout(() => {
+  // Latest pending JSON — captured on every keystroke so the
+  // beforeunload / unmount flush can send the freshest version.
+  const pendingDescription = React.useRef<object | null>(null);
+  const surfaceId = `task:${task.id}`;
+
+  const flushDescription = React.useCallback(
+    (mode: 'async' | 'beacon') => {
+      const next = pendingDescription.current;
+      if (next === null) return;
       const prev = JSON.stringify(lastDescriptionRef.current ?? {});
-      const next = JSON.stringify(json);
-      if (prev !== next) onPatch({ description: json });
-    }, 800);
+      const nextSerial = JSON.stringify(next);
+      if (prev === nextSerial) {
+        pendingDescription.current = null;
+        save.markSaved();
+        return;
+      }
+      lastDescriptionRef.current = next as Record<string, unknown>;
+      pendingDescription.current = null;
+      if (mode === 'beacon') {
+        apiBeacon(apiPaths.pmo.tasks.one(projectSlug, task.id), { description: next });
+        save.markSaved();
+      } else {
+        onPatch({ description: next });
+        save.markSaved();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectSlug, task.id, onPatch],
+  );
+
+  const save = useSaveSurface({
+    surfaceId,
+    flushNow: () => flushDescription('beacon'),
+  });
+
+  const handleDescriptionChange = (json: object) => {
+    pendingDescription.current = json;
+    save.markDirty();
+    if (descriptionTimer.current) clearTimeout(descriptionTimer.current);
+    descriptionTimer.current = setTimeout(() => flushDescription('async'), 800);
   };
   React.useEffect(
     () => () => {
       if (descriptionTimer.current) clearTimeout(descriptionTimer.current);
+      flushDescription('beacon');
     },
-    [],
+    [flushDescription],
   );
 
   return (
@@ -247,6 +282,7 @@ function ModalBody({
           onPick={(statusId) => onPatch({ statusId })}
         />
         <span className="font-mono text-[12px] text-ink-3">{task.key}</span>
+        <SaveBadge surfaceId={surfaceId} />
         <Input
           value={titleDraft}
           onChange={(e) => setTitleDraft(e.target.value)}
