@@ -156,10 +156,52 @@ function BlockNoteEditor({
   const pendingDoc = React.useRef<unknown>(undefined);
   const lastFlushedDoc = React.useRef<string | undefined>(undefined);
 
+  // CRITICAL: gate every save on the Yjs initial sync.
+  //
+  // BlockNote's onChange fires for BOTH local edits and remote Yjs
+  // updates. Between mount and the first 'sync' from the provider,
+  // the editor briefly holds its empty default state — then the
+  // server snapshot arrives and onChange fires with the real
+  // content. If we treated the empty-state onChange as a user edit
+  // and the user switched tabs (visibilitychange) or unmounted
+  // before the snapshot landed, the beacon flush would PATCH the
+  // EMPTY document back to the server and clobber their prior work.
+  //
+  // syncedRef is the source of truth for "is it safe to save?" —
+  // checked inside flushDoc/persist via the ref (so the latest
+  // value wins without re-creating closures). Offline mode (no
+  // Yjs connection) starts synced=true since there's no remote
+  // state to wait on.
+  const [synced, setSynced] = React.useState<boolean>(!conn);
+  const syncedRef = React.useRef<boolean>(!conn);
+  React.useEffect(() => {
+    syncedRef.current = synced;
+  }, [synced]);
+  React.useEffect(() => {
+    if (!conn) return;
+    const onSync = (isSynced: boolean) => {
+      if (isSynced) setSynced(true);
+    };
+    conn.provider.on('sync', onSync);
+    // y-websocket sets `synced` true after first server message;
+    // hot-reloads may already be past that point by the time we
+    // attach. Pick it up if so.
+    if (conn.provider.synced) setSynced(true);
+    return () => {
+      conn.provider.off('sync', onSync);
+    };
+  }, [conn]);
+
   // Reusable PATCH — exposed both to the regular debounce path and to
   // the sync flush-on-unmount/hide path (via apiBeacon w/ keepalive).
   const flushDoc = React.useCallback(
     (mode: 'async' | 'beacon') => {
+      // Refuse to save until Yjs has finished its initial sync — see
+      // the syncedRef comment above for why this matters.
+      if (!syncedRef.current) {
+        pendingDoc.current = undefined;
+        return;
+      }
       const doc = pendingDoc.current;
       if (doc === undefined) return;
       const serial = JSON.stringify(doc);
@@ -210,6 +252,12 @@ function BlockNoteEditor({
 
   const persist = React.useCallback(
     () => {
+      // Ignore onChange callbacks fired by the initial Yjs sync
+      // arriving from the server. The editor briefly shows its
+      // empty default state at mount and BlockNote fires onChange
+      // for the remote merge that follows — treating that as a
+      // user edit would queue an empty-document save.
+      if (!syncedRef.current) return;
       pendingDoc.current = editor.document;
       save.markDirty();
       clearTimeout(saveTimer.current);

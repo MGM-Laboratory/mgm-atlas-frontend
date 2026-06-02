@@ -88,8 +88,33 @@ export function WhiteboardCanvas({
   const surfaceId = `whiteboard:${wbId}`;
   const lastFlushed = React.useRef<string | undefined>(undefined);
 
+  // See note-editor.tsx for why this gate exists. Same bug class:
+  // before the Yjs binding finishes its initial sync, Excalidraw's
+  // onChange may fire with the empty default scene as the binding's
+  // `applyRemoteToScene` populates it from the snapshot. A tab
+  // switch in that window would beacon-flush an empty scene and
+  // overwrite the stored drawing.
+  const syncedRef = React.useRef<boolean>(!wsBase);
+  React.useEffect(() => {
+    const conn = connRef.current;
+    if (!conn) return;
+    const onSync = (isSynced: boolean) => {
+      if (isSynced) syncedRef.current = true;
+    };
+    conn.provider.on('sync', onSync);
+    if (conn.provider.synced) syncedRef.current = true;
+    return () => {
+      conn.provider.off('sync', onSync);
+    };
+    // tryBind populates connRef inside a callback, so we re-run this
+    // effect whenever the token query data lands (that's when the
+    // connection is actually constructed).
+  }, [tokenQuery.data, wsBase]);
+
   const flushScene = React.useCallback(
     (mode: 'async' | 'beacon') => {
+      // Refuse to save until Yjs has finished its initial sync.
+      if (!syncedRef.current) return;
       const exApi = apiRef.current;
       if (!exApi) return;
       const scene = {
@@ -131,6 +156,11 @@ export function WhiteboardCanvas({
 
   const persistSnapshot = React.useCallback(
     () => {
+      // Same gate as note-editor.tsx: Excalidraw fires onChange when
+      // the Yjs binding pushes the initial remote scene into the
+      // canvas. Treating that as a user edit would queue an empty-
+      // scene save during a tab switch.
+      if (!syncedRef.current) return;
       save.markDirty();
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => flushScene('async'), 2000);
