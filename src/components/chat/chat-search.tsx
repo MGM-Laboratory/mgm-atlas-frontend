@@ -6,14 +6,16 @@ import { Search, Hash, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
+import { searchHitHref, type ChatScope } from '@/lib/chat/scope';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import type { ChatSearchHit, ChatSearchResponse } from '@/lib/types';
 
 interface Props {
-  projectSlug: string;
-  projectId: string;
+  chatScope: ChatScope;
+  /** Project id for project-wide search; null for global channels. */
+  projectId: string | null;
   channelId: string;
 }
 
@@ -27,10 +29,13 @@ interface Props {
  * <mark>…</mark> wrappers; rendered through a tight sanitiser that
  * allows the mark tag only.
  */
-export function ChatSearch({ projectSlug, projectId, channelId }: Props) {
+export function ChatSearch({ chatScope, projectId, channelId }: Props) {
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState('');
-  const [scope, setScope] = React.useState<'channel' | 'project'>('channel');
+  // Global channels have no project to widen into — their second chip
+  // searches everything the user can see ('global' API scope) instead.
+  const isGlobalChannel = chatScope.kind === 'global';
+  const [scope, setScope] = React.useState<'channel' | 'project' | 'global'>('channel');
   const debounced = useDebounced(q, 250);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -55,7 +60,7 @@ export function ChatSearch({ projectSlug, projectId, channelId }: Props) {
           scope,
           q: debounced.trim(),
           channelId: scope === 'channel' ? channelId : undefined,
-          projectId: scope === 'project' ? projectId : undefined,
+          projectId: scope === 'project' && projectId ? projectId : undefined,
           limit: 30,
         }),
       ),
@@ -98,7 +103,13 @@ export function ChatSearch({ projectSlug, projectId, channelId }: Props) {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={scope === 'channel' ? 'Search this channel' : 'Search this project'}
+            placeholder={
+              scope === 'channel'
+                ? 'Search this channel'
+                : scope === 'project'
+                  ? 'Search this project'
+                  : 'Search everywhere'
+            }
             className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-ink-3"
           />
         </div>
@@ -108,9 +119,15 @@ export function ChatSearch({ projectSlug, projectId, channelId }: Props) {
           <ScopeChip active={scope === 'channel'} onClick={() => setScope('channel')}>
             This channel
           </ScopeChip>
-          <ScopeChip active={scope === 'project'} onClick={() => setScope('project')}>
-            Whole project
-          </ScopeChip>
+          {isGlobalChannel ? (
+            <ScopeChip active={scope === 'global'} onClick={() => setScope('global')}>
+              Everywhere
+            </ScopeChip>
+          ) : (
+            <ScopeChip active={scope === 'project'} onClick={() => setScope('project')}>
+              Whole project
+            </ScopeChip>
+          )}
         </div>
 
         <div className="max-h-[400px] overflow-y-auto">
@@ -128,9 +145,8 @@ export function ChatSearch({ projectSlug, projectId, channelId }: Props) {
                 <SearchHitRow
                   key={h.id}
                   hit={h}
-                  projectSlug={projectSlug}
                   onPick={() => setOpen(false)}
-                  showProject={scope === 'project'}
+                  showProject={scope !== 'channel'}
                 />
               ))}
             </ul>
@@ -166,23 +182,26 @@ function ScopeChip({
 
 interface SearchHitRowProps {
   hit: ChatSearchHit;
-  projectSlug: string;
   onPick: () => void;
   showProject: boolean;
 }
 
-export function SearchHitRow({ hit, projectSlug, onPick, showProject }: SearchHitRowProps) {
+export function SearchHitRow({ hit, onPick, showProject }: SearchHitRowProps) {
+  // The hit itself knows where it lives — global-channel hits have no
+  // projectSlug and route to /chat/global/… instead.
   return (
     <li>
       <Link
-        href={`/projects/${projectSlug}/chat/${hit.channelId}?msg=${hit.id}` as never}
+        href={`${searchHitHref(hit.projectSlug, hit.channelId)}?msg=${hit.id}` as never}
         onClick={onPick}
         className="block px-3 py-2 transition-colors hover:bg-surface-muted/60"
       >
         <div className="flex items-center gap-1.5 text-[11px] text-ink-3">
           {showProject ? (
             <>
-              <span className="truncate font-medium text-ink-2">{hit.projectTitle}</span>
+              <span className="truncate font-medium text-ink-2">
+                {hit.projectTitle ?? 'Workspace'}
+              </span>
               <span>·</span>
             </>
           ) : null}

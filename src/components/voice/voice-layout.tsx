@@ -54,7 +54,7 @@ export function VoiceLayout({
   return (
     <div className="flex h-full min-h-0">
       <ChannelList
-        projectSlug={projectSlug}
+        scope={{ kind: 'project', slug: projectSlug }}
         projectTitle={projectTitle}
         activeChannelId={channelId}
         canManage={isManager}

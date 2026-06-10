@@ -74,6 +74,27 @@ export const apiPaths = {
   // ─── Chat ──────────────────────────────────────────────────────────
   chat: {
     myProjects: () => '/chat/me/projects',
+    // Workspace-global channels (no project). List/read for everyone;
+    // create/update/archive are admin-only on the backend.
+    globalChannels: () => '/chat/global/channels',
+    globalChannel: (channelId: string) => `/chat/global/channels/${channelId}`,
+    archiveGlobalChannel: (channelId: string) => `/chat/global/channels/${channelId}/archive`,
+    unarchiveGlobalChannel: (channelId: string) =>
+      `/chat/global/channels/${channelId}/unarchive`,
+    globalMembers: (q?: string) => `/chat/global/members${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    // Channel-id-keyed routes — work for any channel the caller can
+    // access (global channels, lobby voice threads, project channels).
+    channelMessages: (channelId: string, cursor?: string, limit?: number) => {
+      const qs = new URLSearchParams();
+      if (cursor) qs.set('cursor', cursor);
+      if (limit) qs.set('limit', String(limit));
+      const q = qs.toString();
+      return `/chat/channels/${channelId}/messages${q ? `?${q}` : ''}`;
+    },
+    channelRead: (channelId: string) => `/chat/channels/${channelId}/read`,
+    channelStateById: (channelId: string) => `/chat/channels/${channelId}/state`,
+    channelPins: (channelId: string) => `/chat/channels/${channelId}/pins`,
+    channelPresign: (channelId: string) => `/chat/channels/${channelId}/attachments/presign`,
     channels: (projectSlugOrId: string) => `/projects/${projectSlugOrId}/chat/channels`,
     channel: (projectSlugOrId: string, channelId: string) =>
       `/projects/${projectSlugOrId}/chat/channels/${channelId}`,

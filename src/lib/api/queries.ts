@@ -33,6 +33,7 @@ export const queryKeys = {
   featured: ['featured'] as const,
   chat: {
     myProjects: ['chat', 'me', 'projects'] as const,
+    globalChannels: ['chat', 'global', 'channels'] as const,
     channels: (projectSlugOrId: string) => ['chat', 'channels', projectSlugOrId] as const,
     messages: (channelId: string) => ['chat', 'messages', channelId] as const,
     pins: (channelId: string) => ['chat', 'pins', channelId] as const,

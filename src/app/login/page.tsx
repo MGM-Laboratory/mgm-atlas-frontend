@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getStoredSession } from '@/lib/auth-client';
+import { sanitizeReturnTo } from '@/lib/auth-redirect';
 import { Wordmark } from '@/components/brand/wordmark';
 import { PatternCorner } from '@/components/brand/pattern-corner';
 import { ShapeSignature } from '@/components/brand/shape-signature';
@@ -33,9 +34,13 @@ export default async function LoginPage({ searchParams }: PageProps) {
   const session = getStoredSession();
   const params = await searchParams;
 
-  // If already logged in, redirect to dashboard
+  // If already logged in, redirect to the requested page (or dashboard).
+  // NOTE: this server-side branch is currently dead — getStoredSession()
+  // is window-gated and always returns null on the server — but the
+  // callbackUrl is sanitized anyway so it stays safe if a server-side
+  // session source ever lands.
   if (session) {
-    redirect(params.callbackUrl ?? '/dashboard');
+    redirect(sanitizeReturnTo(params.callbackUrl) ?? '/dashboard');
   }
 
   return (

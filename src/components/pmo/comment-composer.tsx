@@ -147,7 +147,7 @@ export function CommentComposer({
         ref={mentionRef}
         value={value}
         caret={caret}
-        projectSlug={projectSlug}
+        scope={{ kind: 'project', slug: projectSlug }}
         onSelect={handleMentionInsert}
       />
 
