@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { apiPaths } from '@/lib/api/paths';
+import { membersPath, type ChatScope } from '@/lib/chat/scope';
 import { Avatar } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { ChatMember } from '@/lib/types';
@@ -22,7 +22,7 @@ interface Props {
   value: string;
   /** Live caret position in the textarea. */
   caret: number;
-  projectSlug: string;
+  scope: ChatScope;
   /** Replace [start..end] in `value` with `replacement` and reposition the caret. */
   onSelect: (start: number, end: number, replacement: string) => void;
 }
@@ -35,7 +35,7 @@ export interface MentionSuggestHandle {
 }
 
 export const MentionSuggest = React.forwardRef<MentionSuggestHandle, Props>(function MentionSuggest(
-  { value, caret, projectSlug, onSelect },
+  { value, caret, scope, onSelect },
   ref,
 ) {
   const trigger = React.useMemo(() => findTrigger(value, caret), [value, caret]);
@@ -43,9 +43,10 @@ export const MentionSuggest = React.forwardRef<MentionSuggestHandle, Props>(func
 
   React.useEffect(() => setActiveIndex(0), [trigger?.query]);
 
+  const scopeKey = scope.kind === 'project' ? scope.slug : '@global';
   const query = useQuery({
-    queryKey: ['chat', 'members', projectSlug, trigger?.query ?? ''],
-    queryFn: () => api<ChatMember[]>(apiPaths.chat.members(projectSlug, trigger?.query ?? '')),
+    queryKey: ['chat', 'members', scopeKey, trigger?.query ?? ''],
+    queryFn: () => api<ChatMember[]>(membersPath(scope, trigger?.query ?? '')),
     enabled: !!trigger,
     staleTime: 30_000,
     placeholderData: (prev) => prev,

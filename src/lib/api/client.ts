@@ -1,6 +1,7 @@
 'use client';
 
-import { getSessionId } from '@/lib/auth-client';
+import { clearSession, getSessionId } from '@/lib/auth-client';
+import { sanitizeReturnTo } from '@/lib/auth-redirect';
 import { ApiError } from './error';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
@@ -29,6 +30,24 @@ export async function api<T = unknown>(path: string, opts: FetchOptions = {}): P
   });
 
   if (!res.ok) {
+    // A 401 with a token present means the session was invalidated
+    // server-side (expired row, revoked, DB reset) while the client
+    // still holds it. Backend authz failures are 403, so this can't
+    // misfire on permission errors. Bounce through login carrying the
+    // current URL so the user returns to the same page after re-auth.
+    if (res.status === 401 && token && typeof window !== 'undefined') {
+      if (!window.location.pathname.startsWith('/login')) {
+        clearSession();
+        const returnTo = sanitizeReturnTo(
+          window.location.pathname + window.location.search,
+        );
+        window.location.assign(
+          `/login?reason=session-expired${
+            returnTo ? `&callbackUrl=${encodeURIComponent(returnTo)}` : ''
+          }`,
+        );
+      }
+    }
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     throw new ApiError(res.status, body);
   }

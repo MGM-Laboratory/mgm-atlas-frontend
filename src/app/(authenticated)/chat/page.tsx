@@ -2,18 +2,18 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Hash, MessagesSquare } from 'lucide-react';
+import { Globe, Hash, MessagesSquare } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
 import { Container } from '@/components/layout/container';
-import type { ChatOverviewPayload } from '@/lib/types';
+import type { ChatOverviewPayload, ChatWorkspaceOverview } from '@/lib/types';
 
 /**
- * Global chat home. Lists every project the user has chat access to,
- * each with its channels and unread counts. From here they can dive
- * into any project's chat.
+ * Global chat home. Workspace-wide channels first (visible to everyone),
+ * then every project the user has chat access to, each with its
+ * channels and unread counts.
  */
 export default function ChatHomePage() {
   const query = useQuery({
@@ -24,15 +24,20 @@ export default function ChatHomePage() {
   });
 
   const projects = query.data?.projects ?? [];
+  const workspace = query.data?.workspace;
 
   return (
     <Container size="2xl" className="space-y-8 py-10">
       <header className="space-y-2">
         <h1 className="font-display text-display-lg tracking-[-0.02em] text-ink">Chat</h1>
         <p className="max-w-prose text-body-lg text-ink-2">
-          Every project you have access to, with its conversation channels.
+          Workspace-wide channels, plus every project you have access to.
         </p>
       </header>
+
+      {workspace && workspace.channels.length > 0 ? (
+        <WorkspaceCard workspace={workspace} />
+      ) : null}
 
       {query.isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -108,5 +113,47 @@ export default function ChatHomePage() {
         </ul>
       )}
     </Container>
+  );
+}
+
+/**
+ * Workspace section — visually distinct from the project cards (blue
+ * leading color + Globe) because these channels belong to everyone,
+ * not to a project.
+ */
+function WorkspaceCard({ workspace }: { workspace: ChatWorkspaceOverview }) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-brand-blue/30 bg-white">
+      <div className="flex items-center gap-3 border-b border-line bg-brand-blue/5 px-4 py-3">
+        <div className="grid h-10 w-10 place-items-center rounded bg-brand-blue/10 text-brand-blue">
+          <Globe className="h-4 w-4" strokeWidth={2.25} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] font-medium text-ink">Workspace</div>
+          <div className="text-[12px] text-ink-3">Channels shared with everyone</div>
+        </div>
+        {workspace.unread > 0 ? (
+          <span className="inline-grid h-5 min-w-5 place-items-center rounded-full bg-brand-blue px-1.5 text-[11px] font-medium text-white">
+            {workspace.unread}
+          </span>
+        ) : null}
+      </div>
+      <ul className="divide-y divide-line">
+        {workspace.channels.map((c) => (
+          <li key={c.id}>
+            <Link
+              href={`/chat/global/${c.id}` as never}
+              className="flex items-center gap-2 px-4 py-2 text-[13px] text-ink-2 hover:bg-surface-muted hover:text-ink"
+            >
+              <Hash className="h-3.5 w-3.5 text-ink-3" strokeWidth={2.25} />
+              <span className="flex-1 truncate">{c.name}</span>
+              {c.unread > 0 ? (
+                <span className="text-[11px] font-medium text-brand-blue">{c.unread}</span>
+              ) : null}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

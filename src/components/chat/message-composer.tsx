@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, uploadToPresigned } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { messagesPath, presignPath, type ChatScope } from '@/lib/chat/scope';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type {
@@ -22,7 +23,7 @@ import { LinkPreviewCard } from './link-preview-card';
 import { MentionSuggest, type MentionSuggestHandle } from './mention-suggest';
 
 interface Props {
-  projectSlug: string;
+  scope: ChatScope;
   channelId: string;
   channelName: string;
   replyTo: ChatMessage | null;
@@ -65,7 +66,7 @@ const URL_REGEX = /https?:\/\/[^\s<>"']+/;
  * the markdown so the recipient gets a clickable link.
  */
 export function MessageComposer({
-  projectSlug,
+  scope,
   channelId,
   channelName,
   replyTo,
@@ -126,7 +127,7 @@ export function MessageComposer({
 
   const sendMutation = useMutation({
     mutationFn: () =>
-      api(apiPaths.chat.messages(projectSlug, channelId), {
+      api(messagesPath(scope, channelId), {
         method: 'POST',
         body: {
           markdown: draft.trim(),
@@ -247,7 +248,7 @@ export function MessageComposer({
     setAttachments((prev) => [...prev, placeholder]);
     try {
       const presign = await api<ChatAttachmentPresign>(
-        apiPaths.chat.presignAttachment(projectSlug, channelId),
+        presignPath(scope, channelId),
         {
           method: 'POST',
           body: {
@@ -316,7 +317,7 @@ export function MessageComposer({
   // don't touch the in-progress draft so the user doesn't lose typed text.
   const sendGifMutation = useMutation({
     mutationFn: (gif: ChatGif) =>
-      api(apiPaths.chat.messages(projectSlug, channelId), {
+      api(messagesPath(scope, channelId), {
         method: 'POST',
         body: {
           markdown: gif.gifUrl,
@@ -447,7 +448,7 @@ export function MessageComposer({
             ref={mentionRef}
             value={draft}
             caret={caret}
-            projectSlug={projectSlug}
+            scope={scope}
             onSelect={replaceRange}
           />
           <textarea

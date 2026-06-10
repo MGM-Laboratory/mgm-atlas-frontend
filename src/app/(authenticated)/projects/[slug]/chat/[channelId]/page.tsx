@@ -45,7 +45,7 @@ export default function ProjectChannelPage() {
 
   return (
     <ChatLayout
-      projectSlug={slug}
+      scope={{ kind: 'project', slug }}
       projectId={project.id}
       projectTitle={project.title}
       channelId={channelId}

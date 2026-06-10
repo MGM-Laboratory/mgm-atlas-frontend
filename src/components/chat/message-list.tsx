@@ -4,14 +4,14 @@ import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { messagesPath, readPath, statePath, type ChatScope } from '@/lib/chat/scope';
 import { cn } from '@/lib/utils';
 import type { ChatChannelState, ChatMessage, ChatMessagePage } from '@/lib/types';
 import { MessageItem } from './message-item';
 
 interface Props {
-  projectSlug: string;
+  scope: ChatScope;
   channelId: string;
   currentUserId: string;
   isManager: boolean;
@@ -44,7 +44,7 @@ interface Props {
  *     it can't race-mark-read before we know where the divider goes.
  */
 export function MessageList({
-  projectSlug,
+  scope,
   channelId,
   currentUserId,
   isManager,
@@ -61,7 +61,7 @@ export function MessageList({
   const query = useInfiniteQuery({
     queryKey: queryKeys.chat.messages(channelId),
     queryFn: ({ pageParam }) =>
-      api<ChatMessagePage>(apiPaths.chat.messages(projectSlug, channelId, pageParam, 50)),
+      api<ChatMessagePage>(messagesPath(scope, channelId, pageParam, 50)),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: live ? false : 5000,
@@ -81,8 +81,7 @@ export function MessageList({
   // the rest of the session in this channel.
   const stateQuery = useQuery({
     queryKey: queryKeys.chat.channelState(channelId),
-    queryFn: () =>
-      api<ChatChannelState>(apiPaths.chat.channelState(projectSlug, channelId)),
+    queryFn: () => api<ChatChannelState>(statePath(scope, channelId)),
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
@@ -214,10 +213,12 @@ export function MessageList({
   // Gate on cutoff capture so we don't overwrite the server-side last-
   // read before /state has answered with the OLD value.
   const lastMessageId = messages[messages.length - 1]?.id;
+  // Stable dep for the scope object (a fresh literal each parent render).
+  const scopeKey = scope.kind === 'project' ? scope.slug : '@global';
   React.useEffect(() => {
     if (frozenCutoff === undefined) return;
     if (!lastMessageId) return;
-    void api(apiPaths.chat.read(projectSlug, channelId), {
+    void api(readPath(scope, channelId), {
       method: 'POST',
       body: { lastReadMessageId: lastMessageId },
     })
@@ -225,7 +226,8 @@ export function MessageList({
       .catch(() => {
         /* read marker is best-effort */
       });
-  }, [frozenCutoff, lastMessageId, projectSlug, channelId, queryClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frozenCutoff, lastMessageId, scopeKey, channelId, queryClient]);
 
   // ─── Jump-to-message (search hit / pin click) ────────────────────────
   const jumpAttemptsRef = React.useRef(0);

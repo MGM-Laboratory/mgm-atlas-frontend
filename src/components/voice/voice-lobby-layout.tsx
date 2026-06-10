@@ -2,16 +2,19 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Globe, Volume2 } from 'lucide-react';
+import { ArrowLeft, Globe, MessageSquare, Volume2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
 import { getStoredSession } from '@/lib/auth-client';
 import { getVoiceSocket } from '@/lib/realtime/socket';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { VoiceChannelWithRoster } from '@/lib/voice/types';
 import { VoiceChannelRow } from './voice-channel-row';
 import { CreateVoiceChannelButton } from './voice-channel-actions';
+import { VoiceChatThreadPanel } from './voice-chat-thread-panel';
 import { VoiceRoom } from './voice-room';
 
 interface Props {
@@ -27,8 +30,16 @@ interface Props {
  * identical.
  */
 export function VoiceLobbyLayout({ channelId, channelName, channelTopic }: Props) {
-  const isAdmin = getStoredSession()?.user.isAdmin === true;
+  const session = getStoredSession();
+  const isAdmin = session?.user.isAdmin === true;
   const queryClient = useQueryClient();
+  // Collapsible per-channel text thread (§10) — same default as the
+  // per-project layout: open on wide viewports, closed on narrow ones.
+  const [chatOpen, setChatOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setChatOpen(window.innerWidth >= 1024);
+  }, []);
   const lobbyQuery = useQuery({
     queryKey: queryKeys.voice.lobby,
     queryFn: () =>
@@ -122,6 +133,17 @@ export function VoiceLobbyLayout({ channelId, channelName, channelTopic }: Props
               · {channelTopic}
             </span>
           ) : null}
+          <div className="ml-auto">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={chatOpen ? 'Close channel chat' : 'Open channel chat'}
+              onClick={() => setChatOpen((v) => !v)}
+              className={cn(chatOpen ? 'text-brand-blue' : undefined)}
+            >
+              <MessageSquare className="h-4 w-4" strokeWidth={2.25} />
+            </Button>
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto">
@@ -134,6 +156,18 @@ export function VoiceLobbyLayout({ channelId, channelName, channelTopic }: Props
           />
         </div>
       </section>
+
+      {session ? (
+        <VoiceChatThreadPanel
+          voiceChannelId={channelId}
+          voiceChannelName={channelName}
+          projectId={null}
+          projectSlug={null}
+          currentUserId={session.user.id}
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -28,7 +28,7 @@ interface Props {
 export function ForwardDialog({ open, onClose, message }: Props) {
   const [q, setQ] = React.useState('');
   const [selectedChannelId, setSelectedChannelId] = React.useState<string | null>(null);
-  const [sent, setSent] = React.useState<{ projectSlug: string; channelName: string } | null>(null);
+  const [sent, setSent] = React.useState<{ href: string; channelName: string } | null>(null);
 
   React.useEffect(() => {
     if (!open) {
@@ -45,7 +45,26 @@ export function ForwardDialog({ open, onClose, message }: Props) {
     staleTime: 30_000,
   });
 
-  const projects = overviewQuery.data?.projects ?? [];
+  // Present workspace-global channels as a pseudo-project group at the
+  // top — the forward endpoint takes a bare channelId either way.
+  const projects = React.useMemo(() => {
+    const payload = overviewQuery.data;
+    if (!payload) return [];
+    const groups = [...payload.projects];
+    if (payload.workspace && payload.workspace.channels.length > 0) {
+      groups.unshift({
+        id: WORKSPACE_GROUP_ID,
+        slug: WORKSPACE_GROUP_ID,
+        title: 'Workspace',
+        thumbnailUrl: null,
+        updatedAt: '',
+        channels: payload.workspace.channels,
+        unread: payload.workspace.unread,
+      });
+    }
+    return groups;
+  }, [overviewQuery.data]);
+
   const filtered = React.useMemo(
     () => filterProjects(projects, q, message.channelId),
     [projects, q, message.channelId],
@@ -61,7 +80,7 @@ export function ForwardDialog({ open, onClose, message }: Props) {
     },
     onSuccess: () => {
       const target = findChannel(projects, selectedChannelId);
-      if (target) setSent({ projectSlug: target.projectSlug, channelName: target.channelName });
+      if (target) setSent(target);
       // Auto-close after a brief success state.
       setTimeout(onClose, 1400);
     },
@@ -81,7 +100,7 @@ export function ForwardDialog({ open, onClose, message }: Props) {
               Forwarded to #{sent.channelName}.
             </div>
             <a
-              href={`/projects/${sent.projectSlug}/chat`}
+              href={sent.href}
               className="text-[12px] text-brand-blue underline-offset-2 hover:underline"
             >
               Open conversation
@@ -191,14 +210,22 @@ function filterProjects(
     .filter((p) => p.channels.length > 0);
 }
 
+const WORKSPACE_GROUP_ID = '@workspace';
+
 function findChannel(
   projects: ChatProjectOverview[],
   channelId: string | null,
-): { projectSlug: string; channelName: string } | null {
+): { href: string; channelName: string } | null {
   if (!channelId) return null;
   for (const p of projects) {
     const c = p.channels.find((c) => c.id === channelId);
-    if (c) return { projectSlug: p.slug, channelName: c.name };
+    if (c) {
+      return {
+        href:
+          p.id === WORKSPACE_GROUP_ID ? `/chat/global/${c.id}` : `/projects/${p.slug}/chat/${c.id}`,
+        channelName: c.name,
+      };
+    }
   }
   return null;
 }

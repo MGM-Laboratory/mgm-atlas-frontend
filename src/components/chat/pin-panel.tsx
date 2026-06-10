@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { channelHref, pinsPath, type ChatScope } from '@/lib/chat/scope';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import type { ChatAttachment, ChatAttachmentKind, ChatMessageKind } from '@/lib/types';
@@ -33,7 +34,7 @@ interface PinnedRow {
 interface Props {
   open: boolean;
   onClose: () => void;
-  projectSlug: string;
+  scope: ChatScope;
   channelId: string;
   /** Manager-only; if false the Unpin action is hidden. */
   canModerate: boolean;
@@ -45,11 +46,11 @@ interface Props {
  * existing `?msg=` query param the timeline already handles for
  * search hits).
  */
-export function PinPanel({ open, onClose, projectSlug, channelId, canModerate }: Props) {
+export function PinPanel({ open, onClose, scope, channelId, canModerate }: Props) {
   const queryClient = useQueryClient();
   const pinsQuery = useQuery({
     queryKey: queryKeys.chat.pins(channelId),
-    queryFn: () => api<PinnedRow[]>(apiPaths.chat.pins(projectSlug, channelId)),
+    queryFn: () => api<PinnedRow[]>(pinsPath(scope, channelId)),
     enabled: open,
     staleTime: 30_000,
   });
@@ -94,7 +95,7 @@ export function PinPanel({ open, onClose, projectSlug, channelId, canModerate }:
                   </div>
                 ) : null}
                 <a
-                  href={`/projects/${projectSlug}/chat/${channelId}?msg=${p.message.id}`}
+                  href={`${channelHref(scope, channelId)}?msg=${p.message.id}`}
                   className="block rounded -mx-2 px-2 py-1 hover:bg-surface-muted/60"
                 >
                   <div className="flex items-center gap-2">

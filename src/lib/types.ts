@@ -314,7 +314,8 @@ export interface ListOverview {
 
 export interface ChatChannel {
   id: string;
-  projectId: string;
+  /** null = workspace-global channel (visible to every authenticated user). */
+  projectId: string | null;
   name: string;
   slug: string;
   topic: string | null;
@@ -418,8 +419,15 @@ export interface ChatProjectOverview {
   unread: number;
 }
 
+export interface ChatWorkspaceOverview {
+  channels: ChatProjectOverviewChannel[];
+  unread: number;
+}
+
 export interface ChatOverviewPayload {
   projects: ChatProjectOverview[];
+  /** Workspace-global channels. Optional: older backends omit it. */
+  workspace?: ChatWorkspaceOverview;
 }
 
 export interface ChatLinkPreview {
@@ -462,7 +470,8 @@ export interface ChatMember {
   id: string;
   name: string;
   avatarUrl: string | null;
-  role: ProjectRole;
+  /** null for workspace-global member search (no project role context). */
+  role: ProjectRole | null;
   title: string | null;
 }
 
@@ -470,9 +479,10 @@ export interface ChatSearchHit {
   id: string;
   channelId: string;
   channelName: string;
-  projectId: string;
-  projectSlug: string;
-  projectTitle: string;
+  /** null for hits in workspace-global channels. */
+  projectId: string | null;
+  projectSlug: string | null;
+  projectTitle: string | null;
   authorId: string;
   authorName: string;
   /** Snippet with `<mark>` wrappers — sanitised by the renderer. */

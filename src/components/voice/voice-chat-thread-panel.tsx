@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { queryKeys } from '@/lib/api/queries';
+import { type ChatScope } from '@/lib/chat/scope';
 import { useChannelSocket } from '@/lib/realtime/use-channel-socket';
 import { Button } from '@/components/ui/button';
 import { MessageList } from '@/components/chat/message-list';
@@ -18,9 +19,9 @@ interface Props {
   voiceChannelId: string;
   /** Voice channel name, shown in the panel header. */
   voiceChannelName: string;
-  /** Project the voice channel belongs to. null = lobby (panel renders an info state instead). */
+  /** Project the voice channel belongs to. null = workspace lobby. */
   projectId: string | null;
-  /** Project slug for the existing chat components that expect it. */
+  /** Project slug for the chat components; null = workspace lobby. */
   projectSlug: string | null;
   /** Currently-signed-in user id, threaded to the chat components. */
   currentUserId: string;
@@ -37,11 +38,9 @@ interface Props {
  * Resolves the paired ChatChannel id via GET /voice/channels/:id/thread,
  * then drives the chat surfaces against that id. The thread channel is
  * marked isVoiceThread server-side, so it never appears in the regular
- * project chat sidebar.
- *
- * Lobby channels don't have threads (yet) — Phase 4 keeps the schema
- * additive by deferring nullable-projectId support on ChatChannel.
- * The panel renders a friendly notice in that case.
+ * chat sidebars. Lobby channels' threads are workspace-global chat
+ * channels (projectId = null) and work the same way through the
+ * channel-id-keyed chat routes.
  */
 export function VoiceChatThreadPanel({
   voiceChannelId,
@@ -55,17 +54,6 @@ export function VoiceChatThreadPanel({
   // Closed → render nothing. Keep the component mounted only when
   // visible so the chat socket subscription tears down cleanly.
   if (!open) return null;
-  if (!projectId || !projectSlug) {
-    return (
-      <aside className="flex h-full w-80 shrink-0 flex-col border-l border-line bg-white">
-        <PanelHeader title={voiceChannelName} onClose={onClose} />
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-[13px] text-ink-3">
-          <MessageSquare className="h-6 w-6 text-ink-4" strokeWidth={2} />
-          <p>Text chat is available in project voice channels only.</p>
-        </div>
-      </aside>
-    );
-  }
   return (
     <ResolvedThreadPanel
       voiceChannelId={voiceChannelId}
@@ -88,15 +76,19 @@ function ResolvedThreadPanel({
 }: {
   voiceChannelId: string;
   voiceChannelName: string;
-  projectId: string;
-  projectSlug: string;
+  projectId: string | null;
+  projectSlug: string | null;
   currentUserId: string;
   onClose: () => void;
 }) {
+  const scope: ChatScope = projectSlug
+    ? { kind: 'project', slug: projectSlug }
+    : { kind: 'global' };
+
   const threadQuery = useQuery({
     queryKey: queryKeys.voice.thread(voiceChannelId),
     queryFn: () =>
-      api<{ chatChannelId: string; projectId: string; projectSlug: string | null }>(
+      api<{ chatChannelId: string; projectId: string | null; projectSlug: string | null }>(
         apiPaths.voice.thread(voiceChannelId),
       ),
     refetchOnWindowFocus: false,
@@ -149,7 +141,7 @@ function ResolvedThreadPanel({
         onClose={onClose}
       />
       <MessageList
-        projectSlug={projectSlug}
+        scope={scope}
         channelId={chatChannelId}
         currentUserId={currentUserId}
         isManager={false /* moderator actions defer to Phase 5 of voice */}
@@ -160,7 +152,7 @@ function ResolvedThreadPanel({
         <TypingIndicator channelId={chatChannelId} />
       </div>
       <MessageComposer
-        projectSlug={projectSlug}
+        scope={scope}
         channelId={chatChannelId}
         channelName={voiceChannelName}
         replyTo={replyTo}
