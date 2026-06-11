@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from 'next/font/google';
 import { Providers } from './providers';
+import { MaintenanceBanner } from '@/components/feature-flags/maintenance-banner';
 import './globals.css';
 
 const bricolage = Bricolage_Grotesque({
@@ -47,7 +48,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body className="bg-white antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          <MaintenanceBanner />
+          {children}
+        </Providers>
       </body>
     </html>
   );

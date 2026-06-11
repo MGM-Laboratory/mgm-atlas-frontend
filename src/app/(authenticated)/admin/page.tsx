@@ -13,6 +13,7 @@ import { UserManager } from '@/components/admin/user-manager';
 import { CollaborationRoleManager } from '@/components/admin/role-manager';
 import { FeaturedManager } from '@/components/admin/featured-manager';
 import { StickerManager } from '@/components/admin/sticker-manager';
+import { FeatureFlagManager } from '@/components/admin/feature-flag-manager';
 
 export default function AdminPage() {
   const searchParams = useSearchParams();
@@ -73,6 +74,7 @@ export default function AdminPage() {
           <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="stickers">Stickers</TabsTrigger>
+          <TabsTrigger value="flags">Flags</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tags">
@@ -89,6 +91,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="stickers">
           <StickerManager />
+        </TabsContent>
+        <TabsContent value="flags">
+          <FeatureFlagManager />
         </TabsContent>
       </Tabs>
     </Container>
