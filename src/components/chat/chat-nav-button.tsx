@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Hash, MessagesSquare, Search } from 'lucide-react';
+import { Globe, Hash, MessagesSquare, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
@@ -46,7 +46,9 @@ export function ChatNavButton() {
   }, []);
 
   const projects = overview.data?.projects ?? [];
-  const totalUnread = projects.reduce((sum, p) => sum + p.unread, 0);
+  const workspace = overview.data?.workspace;
+  const totalUnread =
+    projects.reduce((sum, p) => sum + p.unread, 0) + (workspace?.unread ?? 0);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -90,6 +92,31 @@ export function ChatNavButton() {
             </Link>
           </div>
         </div>
+        {workspace && workspace.channels.length > 0 ? (
+          <div className="border-b border-line py-1">
+            {workspace.channels.map((c) => (
+              <Link
+                key={c.id}
+                href={`/chat/global/${c.id}` as never}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-surface-muted"
+              >
+                <div className="grid h-7 w-7 place-items-center rounded bg-brand-blue/10 text-brand-blue">
+                  <Globe className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-ink">#{c.name}</div>
+                  <div className="truncate text-[11px] text-ink-3">Workspace</div>
+                </div>
+                {c.unread > 0 ? (
+                  <span className="inline-grid h-5 min-w-5 place-items-center rounded-full bg-brand-blue px-1.5 text-[10px] font-medium text-white">
+                    {c.unread}
+                  </span>
+                ) : null}
+              </Link>
+            ))}
+          </div>
+        ) : null}
         {projects.length === 0 ? (
           <div className="px-3 py-6 text-center text-[13px] text-ink-3">
             No project chats yet.

@@ -4,8 +4,8 @@ import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Excalidraw } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
-import { Download, Eye, Loader2, Pencil, Upload, WifiOff } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { Clock, Download, Eye, Loader2, Pencil, Upload, WifiOff } from 'lucide-react';
+import { api, apiBeacon } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import { getYjsWsUrl } from '@/lib/hooks/use-pmo-enabled';
 import { createYjsConnection, cursorColorFor, type YjsConnection } from '@/lib/yjs/provider';
@@ -14,6 +14,8 @@ import {
   type ExcalidrawApiLike,
   type ExElement,
 } from '@/lib/yjs/excalidraw-binding';
+import { useSaveSurface, SaveBadge } from '@/lib/save-coordinator';
+import { RevisionHistoryDrawer } from '@/components/pmo/revision-history-drawer';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -36,6 +38,7 @@ export function WhiteboardCanvas({
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [status, setStatus] = React.useState<'connecting' | 'connected' | 'offline'>('connecting');
   const [viewMode, setViewMode] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
 
   const tokenQuery = useQuery({
     queryKey: ['pmo', 'wb-token', projectSlug, wbId],
@@ -45,13 +48,28 @@ export function WhiteboardCanvas({
   });
   const wsBase = getYjsWsUrl() || tokenQuery.data?.wsUrl || '';
 
+  // Stored sceneSnapshot JSON projection — fetched for auto-recovery
+  // when the Yjs binary state is empty but the projection has the
+  // user's saved scene. See the recovery effect below.
+  const whiteboardQuery = useQuery({
+    queryKey: ['pmo', 'whiteboard', projectSlug, wbId],
+    queryFn: () => api<Whiteboard>(apiPaths.pmo.whiteboards.one(projectSlug, wbId)),
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
   React.useEffect(() => {
     return () => {
+      // Flush whatever the user just drew via keepalive fetch BEFORE
+      // we tear down the Yjs binding — otherwise the pending 2s
+      // debounce gets clipped and the scene is lost.
       clearTimeout(saveTimer.current);
+      flushScene('beacon');
       bindingRef.current?.destroy();
       connRef.current?.provider.destroy();
       connRef.current?.doc.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run-once teardown
   }, []);
 
   // Once both the Excalidraw API and the token are ready, wire the Yjs binding.
@@ -67,6 +85,7 @@ export function WhiteboardCanvas({
       setStatus(e.status === 'connected' ? 'connected' : 'connecting'),
     );
     bindingRef.current = new ExcalidrawYjsBinding(conn.doc, conn.provider, apiRef.current, {
+      id: user.id,
       name: user.name,
       color: cursorColorFor(user.id),
     });
@@ -76,9 +95,75 @@ export function WhiteboardCanvas({
     tryBind();
   }, [tryBind]);
 
-  const persistSnapshot = React.useCallback(() => {
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
+  const surfaceId = `whiteboard:${wbId}`;
+  const lastFlushed = React.useRef<string | undefined>(undefined);
+
+  // See note-editor.tsx for why this gate exists. Same bug class:
+  // before the Yjs binding finishes its initial sync, Excalidraw's
+  // onChange may fire with the empty default scene as the binding's
+  // `applyRemoteToScene` populates it from the snapshot. A tab
+  // switch in that window would beacon-flush an empty scene and
+  // overwrite the stored drawing.
+  const syncedRef = React.useRef<boolean>(!wsBase);
+  const [synced, setSynced] = React.useState<boolean>(!wsBase);
+  React.useEffect(() => {
+    const conn = connRef.current;
+    if (!conn) return;
+    const onSync = (isSynced: boolean) => {
+      if (isSynced) {
+        syncedRef.current = true;
+        setSynced(true);
+      }
+    };
+    conn.provider.on('sync', onSync);
+    if (conn.provider.synced) {
+      syncedRef.current = true;
+      setSynced(true);
+    }
+    return () => {
+      conn.provider.off('sync', onSync);
+    };
+    // tryBind populates connRef inside a callback, so we re-run this
+    // effect whenever the token query data lands (that's when the
+    // connection is actually constructed).
+  }, [tokenQuery.data, wsBase]);
+
+  // Auto-recovery from sceneSnapshot.
+  //
+  // Whiteboards that lost their binary Yjs state to the PR1 sidecar
+  // race (writeState raced with the 250ms flush-on-disconnect handler
+  // and wrote an empty doc on top) come back from the dead here:
+  // once Yjs has synced and the live scene is empty BUT the JSON
+  // projection has elements, push the elements through the binding
+  // so the change propagates back to the (now-fixed) sidecar.
+  const recoveredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!synced || recoveredRef.current) return;
+    const binding = bindingRef.current;
+    const exApi = apiRef.current;
+    if (!binding || !exApi) return;
+    const sceneJson = whiteboardQuery.data?.sceneSnapshot as
+      | { elements?: ExElement[] }
+      | null
+      | undefined;
+    const savedElements = Array.isArray(sceneJson?.elements) ? sceneJson?.elements ?? [] : [];
+    if (savedElements.length === 0) return;
+    const liveElements = exApi.getSceneElementsIncludingDeleted();
+    const liveNonDeleted = liveElements.filter((el) => !el.isDeleted);
+    if (liveNonDeleted.length > 0) return;
+    recoveredRef.current = true;
+    try {
+      binding.replaceAll(savedElements);
+    } catch {
+      // ignore — leave canvas blank rather than crash
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run-once recovery
+  }, [synced, whiteboardQuery.data]);
+
+  const flushScene = React.useCallback(
+    (mode: 'async' | 'beacon') => {
+      // Refuse to save until Yjs has finished its initial sync.
+      if (!syncedRef.current) return;
       const exApi = apiRef.current;
       if (!exApi) return;
       const scene = {
@@ -88,12 +173,51 @@ export function WhiteboardCanvas({
         appState: { viewBackgroundColor: exApi.getAppState().viewBackgroundColor ?? '#ffffff' },
         files: exApi.getFiles(),
       };
-      void api(apiPaths.pmo.whiteboards.update(projectSlug, wbId), {
-        method: 'PATCH',
-        body: { sceneSnapshot: scene },
-      }).catch(() => {});
-    }, 2000);
-  }, [projectSlug, wbId]);
+      const serial = JSON.stringify(scene);
+      if (serial === lastFlushed.current) {
+        save.markSaved();
+        return;
+      }
+      lastFlushed.current = serial;
+      const path = apiPaths.pmo.whiteboards.update(projectSlug, wbId);
+      if (mode === 'beacon') {
+        apiBeacon(path, { sceneSnapshot: scene });
+        save.markSaved();
+        return;
+      }
+      save.markSaving();
+      void api(path, { method: 'PATCH', body: { sceneSnapshot: scene } })
+        .then(() => save.markSaved())
+        .catch((err: unknown) => {
+          lastFlushed.current = undefined;
+          save.markError(err instanceof Error ? err.message : 'Save failed');
+        });
+    },
+    // `save` intentionally excluded — identity stable, see note-editor.tsx.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectSlug, wbId],
+  );
+
+  const save = useSaveSurface({
+    surfaceId,
+    flushNow: () => flushScene('beacon'),
+  });
+
+  const persistSnapshot = React.useCallback(
+    () => {
+      // Same gate as note-editor.tsx: Excalidraw fires onChange when
+      // the Yjs binding pushes the initial remote scene into the
+      // canvas. Treating that as a user edit would queue an empty-
+      // scene save during a tab switch.
+      if (!syncedRef.current) return;
+      save.markDirty();
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => flushScene('async'), 2000);
+    },
+    // `save`'s identity is stable across renders — intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flushScene],
+  );
 
   const handleChange = React.useCallback(
     (elements: readonly ExElement[]) => {
@@ -172,9 +296,12 @@ export function WhiteboardCanvas({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 pb-2">
-        <StatusPill status={status} />
+        <div className="flex items-center gap-3">
+          <StatusPill status={status} />
+          <SaveBadge surfaceId={surfaceId} />
+        </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => setViewMode((v) => !v)}>
             {viewMode ? (
@@ -186,6 +313,15 @@ export function WhiteboardCanvas({
                 <Eye className="h-4 w-4" strokeWidth={2.25} /> View
               </>
             )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-pressed={historyOpen}
+          >
+            <Clock className="h-4 w-4" strokeWidth={2.25} /> History
           </Button>
           <Button
             type="button"
@@ -225,6 +361,26 @@ export function WhiteboardCanvas({
           isCollaborating
         />
       </div>
+      <RevisionHistoryDrawer
+        kind="whiteboard"
+        projectSlug={projectSlug}
+        parentId={wbId}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onRestored={(snapshot) => {
+          // Replace the canvas with the restored Excalidraw scene.
+          // For collab docs this goes through the binding so other
+          // clients see it too.
+          const sc = snapshot as { elements?: ExElement[] } | null;
+          const elements = sc?.elements;
+          if (!Array.isArray(elements)) return;
+          if (bindingRef.current) {
+            bindingRef.current.replaceAll(elements);
+          } else {
+            apiRef.current?.updateScene({ elements });
+          }
+        }}
+      />
     </div>
   );
 }

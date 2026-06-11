@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Bell, Check, Inbox } from 'lucide-react';
+import { Bell, BellOff, Check, Inbox, Sparkles } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Popover,
@@ -14,13 +14,21 @@ import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
 import type { NotificationItem, Paginated } from '@/lib/types';
 import { cn, formatRelative } from '@/lib/utils';
+import { usePushPermission } from '@/lib/notifications/use-push-permission';
+import { useToast } from '@/components/ui/toast';
 
 export function NotificationBell() {
   const qc = useQueryClient();
+  const { permission, busy: enabling, enable } = usePushPermission();
+  const { show } = useToast();
+  // Live-invalidated by NotificationsClient on socket events, so we
+  // don't need to poll. Keep a long staleTime so route changes don't
+  // re-fetch — the socket is the source of truth.
   const unread = useQuery({
     queryKey: ['notifications', 'unread'],
     queryFn: () => api<{ unread: number }>(apiPaths.unreadCount()),
-    refetchInterval: 60_000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
   });
   const list = useQuery({
     queryKey: ['notifications', 1],
@@ -34,6 +42,49 @@ export function NotificationBell() {
     await api(apiPaths.markAllRead(), { method: 'POST' });
     qc.invalidateQueries({ queryKey: ['notifications'] });
   }
+
+  // Live-update the tab title with an "(N) " prefix when there are
+  // unread notifications. Restore the original title when the user
+  // returns to this tab or unread drops to 0. Bookends the bell badge:
+  // people glance at their tab strip more often than the bell icon.
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const stripExisting = (t: string) => t.replace(/^\(\d+\)\s+/, '');
+    const original = stripExisting(document.title);
+    if (count > 0) {
+      document.title = `(${count > 99 ? '99+' : count}) ${original}`;
+    } else {
+      document.title = original;
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && count === 0) {
+        document.title = stripExisting(document.title);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [count]);
+
+  const onEnableClicked = async () => {
+    const result = await enable();
+    if (result.ok) {
+      show({ title: 'Browser notifications enabled', tone: 'success' });
+    } else if (result.reason === 'permission-denied') {
+      show({
+        title: 'Notifications blocked',
+        description: 'Re-enable them from your browser site settings.',
+        tone: 'warning',
+      });
+    } else if (result.reason === 'not-configured') {
+      show({ title: 'Push not configured yet', tone: 'warning' });
+    } else if (result.reason === 'unsupported') {
+      show({
+        title: 'Browser doesn’t support push',
+        description: 'On iOS, install Atlas to your home screen first.',
+        tone: 'info',
+      });
+    }
+  };
 
   return (
     <Popover
@@ -71,6 +122,41 @@ export function NotificationBell() {
             </button>
           ) : null}
         </div>
+
+        {permission === 'default' || permission === 'denied' ? (
+          <div className="flex items-start gap-3 border-b border-line bg-brand-blue-50/40 px-4 py-3">
+            {permission === 'denied' ? (
+              <BellOff className="mt-0.5 h-4 w-4 shrink-0 text-brand-red" strokeWidth={2.25} />
+            ) : (
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" strokeWidth={2.25} />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-[12.5px] text-ink">
+                {permission === 'denied'
+                  ? 'Browser notifications are blocked.'
+                  : 'Get pushed to your device when you’re mentioned.'}
+              </p>
+              <div className="mt-1.5 flex items-center gap-2">
+                {permission === 'default' ? (
+                  <button
+                    onClick={onEnableClicked}
+                    disabled={enabling}
+                    className="text-[12px] font-medium text-brand-blue hover:underline disabled:opacity-60"
+                  >
+                    {enabling ? 'Enabling…' : 'Enable browser notifications'}
+                  </button>
+                ) : (
+                  <Link
+                    href={'/me/notifications' as never}
+                    className="text-[12px] font-medium text-brand-blue hover:underline"
+                  >
+                    Open settings
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="max-h-[420px] overflow-y-auto">
           {list.isLoading ? (

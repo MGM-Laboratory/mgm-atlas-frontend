@@ -6,6 +6,7 @@ import { Search, Hash, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { apiPaths } from '@/lib/api/paths';
+import { searchHitHref } from '@/lib/chat/scope';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { SnippetHTML } from './chat-search';
@@ -114,7 +115,7 @@ function GlobalHit({ hit, onPick }: { hit: ChatSearchHit; onPick: () => void }) 
   return (
     <li>
       <Link
-        href={`/projects/${hit.projectSlug}/chat/${hit.channelId}?msg=${hit.id}` as never}
+        href={`${searchHitHref(hit.projectSlug, hit.channelId)}?msg=${hit.id}` as never}
         onClick={onPick}
         className="block rounded px-3 py-2 transition-colors hover:bg-surface-muted/60"
       >
@@ -142,13 +143,15 @@ interface ProjectGroup {
 function groupByProject(hits: ChatSearchHit[]): ProjectGroup[] {
   const map = new Map<string, ProjectGroup>();
   for (const h of hits) {
-    const group = map.get(h.projectId);
+    // Workspace-global hits (projectId null) group under "Workspace".
+    const key = h.projectId ?? '@workspace';
+    const group = map.get(key);
     if (group) {
       group.hits.push(h);
     } else {
-      map.set(h.projectId, {
-        projectId: h.projectId,
-        projectTitle: h.projectTitle,
+      map.set(key, {
+        projectId: key,
+        projectTitle: h.projectTitle ?? 'Workspace',
         hits: [h],
       });
     }

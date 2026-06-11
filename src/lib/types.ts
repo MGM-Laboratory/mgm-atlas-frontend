@@ -26,7 +26,77 @@ export type NotificationType =
   | 'PROJECT_INVITED'
   | 'PROJECT_ROLE_CHANGED'
   | 'PROJECT_REMOVED'
-  | 'CHAT_MENTION';
+  | 'CHAT_MENTION'
+  | 'TASK_ASSIGNED'
+  | 'TASK_MENTIONED'
+  | 'TASK_DUE_SOON'
+  | 'TASK_OVERDUE'
+  | 'TASK_COMMENT_REPLY'
+  | 'TASK_STATUS_CHANGED'
+  | 'TASK_DEPENDENCY_BLOCKED'
+  | 'NOTE_MENTIONED'
+  | 'WHITEBOARD_MENTIONED'
+  | 'VOICE_PARTICIPANT_JOINED'
+  | 'VOICE_MENTIONED';
+
+/**
+ * Per-user notification preferences (Phase 4). Mirrors the backend's
+ * `NotificationPreference` Prisma model 1:1 — every boolean here maps
+ * to a column the controller's `PATCH /notifications/preferences`
+ * route accepts.
+ */
+export interface NotificationPreference {
+  id: string;
+  userId: string;
+  pushEnabled: boolean;
+  contributionRequestEnabled: boolean;
+  projectInvitedEnabled: boolean;
+  projectRoleChangedEnabled: boolean;
+  projectRemovedEnabled: boolean;
+  chatMentionEnabled: boolean;
+  taskAssignedEnabled: boolean;
+  taskMentionedEnabled: boolean;
+  taskDueSoonEnabled: boolean;
+  taskOverdueEnabled: boolean;
+  taskCommentReplyEnabled: boolean;
+  taskStatusChangedEnabled: boolean;
+  taskDependencyBlockedEnabled: boolean;
+  noteMentionedEnabled: boolean;
+  whiteboardMentionedEnabled: boolean;
+  voiceParticipantJoinedEnabled: boolean;
+  voiceMentionedEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NotificationPreferenceKey =
+  keyof Pick<
+    NotificationPreference,
+    | 'pushEnabled'
+    | 'contributionRequestEnabled'
+    | 'projectInvitedEnabled'
+    | 'projectRoleChangedEnabled'
+    | 'projectRemovedEnabled'
+    | 'chatMentionEnabled'
+    | 'taskAssignedEnabled'
+    | 'taskMentionedEnabled'
+    | 'taskDueSoonEnabled'
+    | 'taskOverdueEnabled'
+    | 'taskCommentReplyEnabled'
+    | 'taskStatusChangedEnabled'
+    | 'taskDependencyBlockedEnabled'
+    | 'noteMentionedEnabled'
+    | 'whiteboardMentionedEnabled'
+    | 'voiceParticipantJoinedEnabled'
+    | 'voiceMentionedEnabled'
+  >;
+
+export interface PushSubscriptionDevice {
+  id: string;
+  userAgent: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+}
 
 export type ChatMessageKind =
   | 'TEXT'
@@ -244,7 +314,8 @@ export interface ListOverview {
 
 export interface ChatChannel {
   id: string;
-  projectId: string;
+  /** null = workspace-global channel (visible to every authenticated user). */
+  projectId: string | null;
   name: string;
   slug: string;
   topic: string | null;
@@ -348,8 +419,15 @@ export interface ChatProjectOverview {
   unread: number;
 }
 
+export interface ChatWorkspaceOverview {
+  channels: ChatProjectOverviewChannel[];
+  unread: number;
+}
+
 export interface ChatOverviewPayload {
   projects: ChatProjectOverview[];
+  /** Workspace-global channels. Optional: older backends omit it. */
+  workspace?: ChatWorkspaceOverview;
 }
 
 export interface ChatLinkPreview {
@@ -392,7 +470,8 @@ export interface ChatMember {
   id: string;
   name: string;
   avatarUrl: string | null;
-  role: ProjectRole;
+  /** null for workspace-global member search (no project role context). */
+  role: ProjectRole | null;
   title: string | null;
 }
 
@@ -400,9 +479,10 @@ export interface ChatSearchHit {
   id: string;
   channelId: string;
   channelName: string;
-  projectId: string;
-  projectSlug: string;
-  projectTitle: string;
+  /** null for hits in workspace-global channels. */
+  projectId: string | null;
+  projectSlug: string | null;
+  projectTitle: string | null;
   authorId: string;
   authorName: string;
   /** Snippet with `<mark>` wrappers — sanitised by the renderer. */

@@ -30,6 +30,7 @@ export const metadata: Metadata = {
   description:
     'Discover, manage, and contribute to active research projects at MGM Laboratory.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://atlas.labmgm.org'),
+  manifest: '/manifest.webmanifest',
 };
 
 export const viewport: Viewport = {

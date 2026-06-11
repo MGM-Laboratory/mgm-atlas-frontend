@@ -1,0 +1,88 @@
+name: 🐛 Bug report
+description: Something in the Atlas app isn't working right
+title: "bug: "
+labels: ["bug", "status: needs-triage"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched existing issues and this isn't a duplicate
+          required: true
+        - label: This is not a security vulnerability (those go to the Security tab, never a public issue)
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where in the app does this happen?
+      options:
+        - Dashboard / Discovery
+        - Projects (browse, detail, create, manage)
+        - Chat
+        - PMO — tasks / kanban / timeline
+        - PMO — notes / whiteboards / files
+        - Voice (calls, screen share, settings)
+        - Notifications / browser push
+        - Login / auth
+        - UI / design / accessibility
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Production (atlas.labmgm.org)
+        - Staging
+        - Local development
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & OS
+      placeholder: e.g. Chrome 126 on macOS 15, Safari on iOS 18
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you observe, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: DevTools console errors, if any. Redact tokens.
+      render: shell
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or screen recording
+      description: Drag and drop images/videos here — they help a lot.
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Blocker — the app is unusable
+        - Major — a feature is unusable
+        - Minor — annoying but there's a workaround
+        - Cosmetic
+    validations:
+      required: true

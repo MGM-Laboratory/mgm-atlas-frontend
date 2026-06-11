@@ -59,6 +59,12 @@ export const apiPaths = {
   unreadCount: () => '/notifications/unread-count',
   markRead: (id: string) => `/notifications/${id}/read`,
   markAllRead: () => '/notifications/read-all',
+  // ─── Web Push (Phase 3) ───────────────────────────────────────────
+  vapidPublicKey: () => '/notifications/push/vapid-public-key',
+  pushSubscribe: () => '/notifications/push/subscribe',
+  pushSubscriptions: () => '/notifications/push/subscriptions',
+  pushSubscriptionDelete: (id: string) => `/notifications/push/subscriptions/${id}`,
+  notificationPreferences: () => '/notifications/preferences',
 
   collaborationRoles: () => '/admin/collaboration-roles',
   collaborationRole: (id: string) => `/admin/collaboration-roles/${id}`,
@@ -68,6 +74,27 @@ export const apiPaths = {
   // ─── Chat ──────────────────────────────────────────────────────────
   chat: {
     myProjects: () => '/chat/me/projects',
+    // Workspace-global channels (no project). List/read for everyone;
+    // create/update/archive are admin-only on the backend.
+    globalChannels: () => '/chat/global/channels',
+    globalChannel: (channelId: string) => `/chat/global/channels/${channelId}`,
+    archiveGlobalChannel: (channelId: string) => `/chat/global/channels/${channelId}/archive`,
+    unarchiveGlobalChannel: (channelId: string) =>
+      `/chat/global/channels/${channelId}/unarchive`,
+    globalMembers: (q?: string) => `/chat/global/members${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    // Channel-id-keyed routes — work for any channel the caller can
+    // access (global channels, lobby voice threads, project channels).
+    channelMessages: (channelId: string, cursor?: string, limit?: number) => {
+      const qs = new URLSearchParams();
+      if (cursor) qs.set('cursor', cursor);
+      if (limit) qs.set('limit', String(limit));
+      const q = qs.toString();
+      return `/chat/channels/${channelId}/messages${q ? `?${q}` : ''}`;
+    },
+    channelRead: (channelId: string) => `/chat/channels/${channelId}/read`,
+    channelStateById: (channelId: string) => `/chat/channels/${channelId}/state`,
+    channelPins: (channelId: string) => `/chat/channels/${channelId}/pins`,
+    channelPresign: (channelId: string) => `/chat/channels/${channelId}/attachments/presign`,
     channels: (projectSlugOrId: string) => `/projects/${projectSlugOrId}/chat/channels`,
     channel: (projectSlugOrId: string, channelId: string) =>
       `/projects/${projectSlugOrId}/chat/channels/${channelId}`,
@@ -228,6 +255,8 @@ export const apiPaths = {
       remove: (slug: string, fileId: string, force?: boolean) =>
         `/projects/${slug}/files/${fileId}${force ? '?force=1' : ''}`,
     },
+    undo: () => '/pmo/undo',
+    redo: () => '/pmo/redo',
     notes: {
       list: (slug: string) => `/projects/${slug}/notes`,
       create: (slug: string) => `/projects/${slug}/notes`,
@@ -235,6 +264,12 @@ export const apiPaths = {
       update: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
       remove: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}`,
       yjsToken: (slug: string, noteId: string) => `/projects/${slug}/notes/${noteId}/yjs-token`,
+      revisions: (slug: string, noteId: string) =>
+        `/projects/${slug}/notes/${noteId}/revisions`,
+      revision: (slug: string, noteId: string, revisionId: string) =>
+        `/projects/${slug}/notes/${noteId}/revisions/${revisionId}`,
+      restoreRevision: (slug: string, noteId: string, revisionId: string) =>
+        `/projects/${slug}/notes/${noteId}/revisions/${revisionId}/restore`,
     },
     whiteboards: {
       list: (slug: string) => `/projects/${slug}/whiteboards`,
@@ -246,6 +281,12 @@ export const apiPaths = {
       exportMgm: (slug: string, wbId: string) => `/projects/${slug}/whiteboards/${wbId}/export`,
       thumbnailPresign: (slug: string, wbId: string) =>
         `/projects/${slug}/whiteboards/${wbId}/thumbnail/presign`,
+      revisions: (slug: string, wbId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/revisions`,
+      revision: (slug: string, wbId: string, revisionId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/revisions/${revisionId}`,
+      restoreRevision: (slug: string, wbId: string, revisionId: string) =>
+        `/projects/${slug}/whiteboards/${wbId}/revisions/${revisionId}/restore`,
     },
   },
 
@@ -261,10 +302,17 @@ export const apiPaths = {
     lobbyChannel: (channelId: string) => `/voice/lobby/channels/${channelId}`,
     join: (channelId: string) => `/voice/channels/${channelId}/join`,
     leave: (channelId: string) => `/voice/channels/${channelId}/leave`,
+    /** GET — resolve the paired ChatChannel id for a voice channel's text thread. */
     thread: (channelId: string) => `/voice/channels/${channelId}/thread`,
     moderateMute: (channelId: string) => `/voice/channels/${channelId}/moderate/mute`,
     moderateKick: (channelId: string) => `/voice/channels/${channelId}/moderate/kick`,
     moderateMove: (channelId: string) => `/voice/channels/${channelId}/moderate/move`,
+    /** Phase 8 — stage channel actions. */
+    handRaise: (channelId: string) => `/voice/channels/${channelId}/hand/raise`,
+    handLower: (channelId: string) => `/voice/channels/${channelId}/hand/lower`,
+    handQueue: (channelId: string) => `/voice/channels/${channelId}/hand/queue`,
+    stagePromote: (channelId: string) => `/voice/channels/${channelId}/stage/promote`,
+    stageDemote: (channelId: string) => `/voice/channels/${channelId}/stage/demote`,
     preferences: () => '/voice/me/preferences',
     soundboardClips: () => '/voice/soundboard/clips',
     soundboardClip: (id: string) => `/voice/soundboard/clips/${id}`,

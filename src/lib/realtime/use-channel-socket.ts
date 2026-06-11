@@ -8,7 +8,8 @@ import { getChatSocket } from './socket';
 import { usePresenceStore } from './presence-store';
 
 interface UseChannelSocketArgs {
-  projectId: string;
+  /** null = workspace-global channel (no project room; auth-only subscribe). */
+  projectId: string | null;
   channelId: string;
   currentUserId: string;
 }
@@ -42,7 +43,10 @@ export function useChannelSocket({ projectId, channelId, currentUserId }: UseCha
 
     const onConnect = () => {
       setIsConnected(true);
-      socket.emit('chat:subscribe', { projectId, channelId });
+      // Global channels subscribe by channelId only — the gateway
+      // verifies the channel really is global (or insider for project
+      // channels reached by id) and skips the project room.
+      socket.emit('chat:subscribe', projectId ? { projectId, channelId } : { channelId });
     };
     const onDisconnect = () => setIsConnected(false);
 
@@ -134,7 +138,9 @@ export function useChannelSocket({ projectId, channelId, currentUserId }: UseCha
       removeTyping(channelId, p.userId);
     };
     const onPresence = (p: { userId: string; online: boolean }) => {
-      setOnline(projectId, p.userId, p.online);
+      // Presence is project-scoped; global channels receive no presence
+      // events (deliberate v1 scope) so the 'global' bucket stays empty.
+      setOnline(projectId ?? 'global', p.userId, p.online);
     };
 
     // ─── Unread fanout ────────────────────────────────────────────

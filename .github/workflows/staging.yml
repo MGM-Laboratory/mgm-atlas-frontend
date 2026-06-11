@@ -3,6 +3,18 @@ name: staging
 on:
   pull_request:
     branches: ["*"]
+    # Docs-only changes never need a staging image. Use "Run workflow" if
+    # you ever need to force a build.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/**"
+      - ".gitattributes"
+      - ".gitignore"
+      - ".editorconfig"
+      - "LICENSE"
+      - ".env.example"
+      - "docker-compose.yml"
   workflow_dispatch:
 
 env:

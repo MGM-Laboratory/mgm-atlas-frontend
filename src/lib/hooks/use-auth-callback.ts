@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { storeSession } from '@/lib/auth-client';
+import { sanitizeReturnTo } from '@/lib/auth-redirect';
 
 /**
  * Handles the post-Keycloak return: parses the session blob from the URL,
@@ -34,8 +35,11 @@ export function useAuthCallback() {
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('auth_callback');
       }
-      const target = fromQuery || fromSession || '/dashboard';
-      router.push(target);
+      // Both sources are user-controllable — sanitize at consumption
+      // so neither can become an open redirect.
+      const target =
+        sanitizeReturnTo(fromQuery) ?? sanitizeReturnTo(fromSession) ?? '/dashboard';
+      router.push(target as never);
     } catch (error) {
       console.error('Failed to parse session:', error);
       router.push('/login?error=invalid_session_data');
