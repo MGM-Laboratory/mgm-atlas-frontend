@@ -5,17 +5,25 @@ on:
     branches: ["*"]
   workflow_call:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Required check (name is part of the branch-protection contract — do not rename).
   lint-and-typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 10.13.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -27,3 +35,29 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+  # Policy-as-code gate (OPA/conftest). Policies vendored from mgm-atlas-ops
+  # in .github/policy/. Deny rules (no :latest base, HEALTHCHECK required, no
+  # privileged) fail the job; non-root etc. are advisory warns for now.
+  conftest:
+    runs-on: ubuntu-latest
+    env:
+      CONFTEST_VERSION: "0.68.2"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install conftest
+        run: |
+          set -euo pipefail
+          curl -sSL "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+            | tar -xz -C /usr/local/bin conftest
+          conftest --version
+
+      - name: Dockerfile policy
+        run: conftest test --parser dockerfile --namespace dockerfile -p .github/policy Dockerfile
+
+      - name: Compose policy
+        run: conftest test --parser yaml --namespace compose -p .github/policy docker-compose.yml
+
+      - name: Workflows policy
+        run: conftest test --parser yaml --namespace workflows -p .github/policy .github/workflows/*.yml
