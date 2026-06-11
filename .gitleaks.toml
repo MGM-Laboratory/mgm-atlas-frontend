@@ -1,0 +1,15 @@
+# Gitleaks config — extends the built-in ruleset, adds project allowlist.
+# Every allowlist entry must be a documented non-secret (placeholders, fixtures).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Atlas false-positive allowlist (non-secrets only)"
+paths = [
+  '''\.env\.example$''',
+  '''pnpm-lock\.yaml$''',
+]
+# `change-this` is the documented AUTH_SECRET/KEYCLOAK_CLIENT_SECRET placeholder.
+regexes = [
+  '''change-this[a-z-]*''',
+]
