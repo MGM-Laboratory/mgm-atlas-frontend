@@ -23,7 +23,7 @@ Next.js 15 App Router frontend for **MGM Atlas**, a project portfolio dashboard.
 
 ### Auth — read this before touching anything session-related
 
-**The README is stale.** It describes Auth.js v5 with Keycloak, server-side JWT rotation, and a `middleware.ts` that gates `(authenticated)` routes. That is **not** what the code does today. The actual flow:
+**The README now documents the real flow** (rewritten 2026-06; older copies described an Auth.js v5 design that never matched the code). The canonical deep reference remains below. The actual flow:
 
 1. `/login` builds a Keycloak OAuth URL client-side via `buildKeycloakAuthUrl()` in `src/lib/auth-client.ts` and redirects there.
 2. Keycloak returns to `src/app/api/auth/callback/route.ts`, which exchanges the code for tokens, extracts identity claims from the ID token (falling back to `/userinfo`), and POSTs them to the **backend's** `/auth/login`. The backend returns a `sessionId` + user blob.
