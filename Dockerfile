@@ -72,6 +72,16 @@ ENV PORT=3001
 ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Build identity read at runtime by GET /api/version (a dynamic route handler,
+# so these are plain runtime env — not NEXT_PUBLIC bake-time). Empty by default
+# so a local `docker build` without these args still produces a working image.
+ARG GIT_SHA=""
+ARG BUILD_TIME=""
+ARG APP_VERSION=""
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
+ENV APP_VERSION=$APP_VERSION
+
 # Copy the Next.js standalone output. The `.next/standalone` includes a tiny
 # server.js plus only the dependencies actually needed at runtime.
 COPY --from=build /app/.next/standalone ./
