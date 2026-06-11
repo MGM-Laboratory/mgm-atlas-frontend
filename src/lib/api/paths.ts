@@ -2,6 +2,12 @@ import type { ProjectListFilters } from './queries';
 
 export const apiPaths = {
   session: () => '/auth/session',
+
+  // Feature flags — public evaluated map + admin CRUD.
+  featureFlags: () => '/feature-flags',
+  adminFeatureFlags: () => '/admin/feature-flags',
+  adminFeatureFlag: (key: string) => `/admin/feature-flags/${encodeURIComponent(key)}`,
+
   me: () => '/users/me',
   dashboard: () => '/users/me/dashboard',
   bookmarks: () => '/users/me/bookmarks',

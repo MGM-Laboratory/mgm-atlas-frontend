@@ -922,3 +922,16 @@ export interface TeamPayload {
   managers: TeamMember[];
   contributors: TeamMember[];
 }
+
+/// A runtime feature flag (Phase 5). `key` is dotted/snake, e.g. `ui.maintenance_banner`.
+export interface FeatureFlag {
+  key: string;
+  enabled: boolean;
+  description: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/// The public evaluated flag map served at GET /feature-flags.
+export type FeatureFlagMap = Record<string, boolean>;
