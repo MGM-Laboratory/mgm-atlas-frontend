@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may contain breaking changes.
 
+## [0.1.1](https://github.com/MGM-Laboratory/mgm-atlas-frontend/compare/v0.1.0...v0.1.1) (2026-06-12)
+
+
+### Features
+
+* feature flags — hook + admin toggle + maintenance banner (Phase 5, frontend) ([900cae0](https://github.com/MGM-Laboratory/mgm-atlas-frontend/commit/900cae0c1dd96f33b2f3f90784c9708647da4312))
+* **feature-flags:** useFeatureFlag hook + admin toggle UI + maintenance banner ([d1c984b](https://github.com/MGM-Laboratory/mgm-atlas-frontend/commit/d1c984b14834cb4c44480fb9501178e2e45ba7ef))
+* security headers + remove dead next-auth (Phase 11, frontend) ([c1bf6d2](https://github.com/MGM-Laboratory/mgm-atlas-frontend/commit/c1bf6d27587eb7a48726ea08cdb7e13623c1efd3))
+* **security:** security response headers + remove dead next-auth ([f75d0b6](https://github.com/MGM-Laboratory/mgm-atlas-frontend/commit/f75d0b68f9595496c763ab90f525ba59177a137a))
+
 ## [Unreleased]
 
 ## [0.1.0] - 2026-06-11
