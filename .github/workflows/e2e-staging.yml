@@ -1,0 +1,55 @@
+name: e2e
+
+# Playwright end-to-end: real Keycloak login + authenticated flows against
+# STAGING, plus read-only smoke against production. Nightly + manual (not on
+# every PR — it needs the deployed environments + a Keycloak round-trip).
+on:
+  schedule:
+    - cron: "33 2 * * *" # nightly 02:33 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    env:
+      E2E_BASE_URL: https://atlas-staging.labmgm.org
+      SMOKE_BASE_URL: https://atlas.labmgm.org
+      E2E_KC_USERNAME: ${{ secrets.E2E_KC_USERNAME }}
+      E2E_KC_PASSWORD: ${{ secrets.E2E_KC_PASSWORD }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Smoke (production, read-only)
+        run: pnpm exec playwright test --project=smoke --reporter=list
+
+      - name: e2e (staging, authenticated)
+        run: pnpm exec playwright test --project=setup --project=e2e --reporter=list
+
+      - name: Upload report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

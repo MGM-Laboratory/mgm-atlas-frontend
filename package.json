@@ -13,7 +13,9 @@
     "start": "next start -p 3001",
     "lint": "next lint",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test --project=setup --project=e2e",
+    "test:smoke": "playwright test --project=smoke"
   },
   "dependencies": {
     "@blocknote/ariakit": "0.51.3",
@@ -88,7 +90,8 @@
     "prettier-plugin-tailwindcss": "^0.6.8",
     "tailwindcss": "^3.4.13",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "@playwright/test": "^1.49.1"
   },
   "overrides": {
     "@types/react": "npm:types-react@19.0.0-rc.1",
