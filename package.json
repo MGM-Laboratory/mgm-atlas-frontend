@@ -61,7 +61,7 @@
     "livekit-client": "^2.7.0",
     "lowlight": "^3.1.0",
     "lucide-react": "^0.451.0",
-    "nanoid": "^5.0.7",
+    "nanoid": "^5.1.16",
     "next": "15.0.7",
     "react": "19.0.0-rc-69d4b800-20241021",
     "react-dom": "19.0.0-rc-69d4b800-20241021",
